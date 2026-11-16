@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>REPOVERSE — Public Catalog</title>
+<meta name="description" content="REPOVERSE public catalog: repo names without owners, descriptions, or links.">
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="site-header">
+  <div class="wrap">
+    <p class="brand">REPOVERSE</p>
+    <p class="tagline">A public catalog of developer resources. Repo names only, no owners, no descriptions, no links.</p>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="hero" aria-label="Catalog summary">
+    <p class="hero-count"><span id="hero-total">Loading…</span> <span class="hero-label">repos</span></p>
+    <p class="hero-sub"><span id="hero-categories">Loading…</span> categories · <span id="hero-build">public build</span></p>
+  </section>
+
+  <section class="search-block" aria-label="Search">
+    <form id="search-form" autocomplete="off">
+      <label class="visually-hidden" for="search-input">Search repo names</label>
+      <input id="search-input" type="search" placeholder="Search repo names…" aria-describedby="search-hint" aria-expanded="false" aria-controls="search-suggest">
+      <button type="submit">Search</button>
+    </form>
+    <p id="search-hint" class="hint">Type at least 2 characters. Search matches any part of a repo name.</p>
+    <div id="search-suggest" class="suggest" role="listbox" aria-label="Suggestions" hidden></div>
+  </section>
+
+  <div id="error-box" class="error-box" role="alert" hidden></div>
+
+  <section id="picks-section" aria-label="Trending now">
+    <h2>Trending Now — Top Picks</h2>
+    <div id="picks" class="picks"><p class="muted">Loading top picks…</p></div>
+  </section>
+
+  <section id="home-section" aria-label="Categories">
+    <h2>Browse by category</h2>
+    <div id="category-grid" class="category-grid"><p class="muted">Loading categories…</p></div>
+  </section>
+
+  <section id="results-section" aria-label="Results" hidden>
+    <div class="results-head">
+      <h2 id="results-title">Results</h2>
+      <button id="back-home" type="button" class="link-button">← All categories</button>
+    </div>
+    <p id="results-meta" class="muted"></p>
+    <div id="results" class="results"></div>
+    <nav id="pager" class="pager" aria-label="Pages"></nav>
+  </section>
+
+  <section id="detail-section" aria-label="Record details" hidden>
+    <h2>Record details</h2>
+    <div id="detail" class="detail"></div>
+    <button id="detail-close" type="button" class="link-button">Close details</button>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <p>This public catalog shows repo names without owners, descriptions, or links. Counts come from the catalog data files shipped with this site.</p>
+  </div>
+</footer>
+
+<noscript><p style="padding:1rem">This catalog needs JavaScript to load its data files.</p></noscript>
+<script src="app.js" defer></script>
+</body>
+</html>
