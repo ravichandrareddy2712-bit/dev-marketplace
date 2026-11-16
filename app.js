@@ -1,7 +1,9 @@
 /* dev-marketplace public build. Vanilla JS, no framework. All data comes from
    relative data/ files shipped with this site. No outside requests.
    Rendered fields only: repo, category, subcategory, languages,
-   frameworks, tags, stars, forks, license, last_updated, archived. */
+   frameworks, tags, stars, forks, license, last_updated, archived.
+   Community-contributed records may also carry contributed_by, a
+   self-declared display name, rendered as a distinct Community badge. */
 (function () {
   "use strict";
 
@@ -33,6 +35,7 @@
   var els = {};
   ["hero", "hero-total", "hero-categories", "hero-languages", "hero-popular",
    "hero-build", "hero-total-inline", "hero-cats-inline",
+   "about-total", "about-cats", "about-langs", "about-build-date",
    "search-form", "search-input", "search-suggest",
    "error-box", "home-sections", "picks-section", "picks",
    "cat-glance", "glance-note", "browse-all-btn", "browse-note",
@@ -44,8 +47,8 @@
    "filter-sort", "filter-popular", "filter-hide-archived", "filter-clear",
    "filter-note", "filter-load-full", "detail-section", "detail-title",
    "detail", "detail-back", "related-heading", "related",
-   "nav-home", "nav-categories",
-   "contrib-form", "contrib-name", "contrib-category", "contrib-why",
+   "nav-home", "nav-categories", "nav-contribute",
+   "contribute-section", "contrib-form", "contrib-username", "contrib-name", "contrib-category", "contrib-why",
    "contrib-tags", "contrib-error", "contrib-result", "contrib-output",
    "contrib-copy", "contrib-status"].forEach(function (id) {
     els[id] = document.getElementById(id);
@@ -471,9 +474,24 @@
 
   /* ---------- rows, pager, views ---------- */
 
+  /* A community-contributed record carries contributed_by: the display
+     name its contributor declared. No catalog record has one yet; the
+     rendering below is ready for when contributed repos are added. */
+  function contributorOf(r) {
+    if (!r || typeof r.contributed_by !== "string") return "";
+    return r.contributed_by.trim();
+  }
+
+  function communityBadgeHtml(r) {
+    if (!contributorOf(r)) return "";
+    return '<span class="community-badge">Community</span>';
+  }
+
   function metaLine(r) {
     var bits = [];
     if (r.category) bits.push(esc(r.category));
+    var who = contributorOf(r);
+    if (who) bits.push("Contributed by " + esc(who));
     bits.push(fmt(r.forks) + " forks");
     if (r.languages && r.languages.length) bits.push("Languages: " + esc(r.languages.join(", ")));
     if (r.license) bits.push("License: " + esc(r.license));
@@ -484,8 +502,9 @@
   function rowHtml(item) {
     var r = item.r;
     var archived = r && r.archived ? '<span class="archived-badge">Archived</span>' : "";
+    var community = r ? communityBadgeHtml(r) : "";
     var meta = r ? metaLine(r) : esc(categoryName(item.c));
-    return '<div class="row-top"><span class="row-name">' + esc(item.n) + archived +
+    return '<div class="row-top"><span class="row-name">' + esc(item.n) + archived + community +
       '</span><span class="row-stars">★ ' + fmt(item.s) + "</span></div>" +
       '<div class="row-meta">' + meta + "</div>";
   }
@@ -723,6 +742,8 @@
   function detailHtml(r) {
     var rows = [];
     rows.push("<dt>Category</dt><dd>" + esc(r.category || "—") + "</dd>");
+    var who = contributorOf(r);
+    if (who) rows.push("<dt>Contributed by</dt><dd>" + esc(who) + "</dd>");
     rows.push("<dt>Subcategory</dt><dd>" + esc(r.subcategory || "—") + "</dd>");
     rows.push("<dt>Stars</dt><dd>" + fmt(r.stars) + "</dd>");
     rows.push("<dt>Forks</dt><dd>" + fmt(r.forks) + "</dd>");
@@ -735,7 +756,7 @@
       return '<span class="tag-chip">' + esc(t) + "</span>";
     }).join("");
     rows.push("<dt>Tags</dt><dd>" + (tags || "—") + "</dd>");
-    return '<p class="detail-name">' + esc(r.repo) + "</p>" +
+    return '<p class="detail-name">' + esc(r.repo) + communityBadgeHtml(r) + "</p>" +
       '<p class="detail-stats">★ ' + fmt(r.stars) + " · " + fmt(r.forks) + " forks</p>" +
       "<dl>" + rows.join("") + "</dl>";
   }
@@ -808,9 +829,12 @@
         var b = document.createElement("button");
         b.type = "button";
         b.className = "pick";
+        var pickWho = contributorOf(p);
         b.innerHTML = '<span class="badge">Trending · #' + (i + 1) + "</span>" +
+          communityBadgeHtml(p) +
           '<span class="pick-name">' + esc(p.repo) + "</span>" +
-          '<span class="pick-meta"><span class="stars">★ ' + fmt(p.stars) + "</span> · " + esc(p.category) + "</span>";
+          '<span class="pick-meta"><span class="stars">★ ' + fmt(p.stars) + "</span> · " + esc(p.category) +
+          (pickWho ? " · Contributed by " + esc(pickWho) : "") + "</span>";
         b.addEventListener("click", function () {
           var cat = categoryBySlug(p.slug);
           var file = cat && cat.files && cat.files.length === 1 ? cat.files[0] : null;
@@ -823,6 +847,12 @@
     /* Inline hero counts, so the intro text stays truthful. */
     els["hero-total-inline"].textContent = fmt(manifest.total);
     els["hero-cats-inline"].textContent = fmt(manifest.categories.length);
+
+    /* About-the-catalog counts, from the manifest — never hardcoded. */
+    els["about-total"].textContent = fmt(manifest.total);
+    els["about-cats"].textContent = fmt(manifest.categories.length);
+    els["about-langs"].textContent = manifest.languages_count != null ? fmt(manifest.languages_count) : "—";
+    els["about-build-date"].textContent = manifest.generated_at || "—";
 
     var cats = manifest.categories.slice().sort(function (a, b) { return b.count - a.count; });
 
@@ -962,17 +992,30 @@
 
   /* ---------- routing ---------- */
 
+  function scrollToContribute() {
+    var section = els["contribute-section"];
+    if (!section) return;
+    section.scrollIntoView({ behavior: "smooth", block: "start" });
+    window.setTimeout(function () {
+      if (els["contrib-username"]) els["contrib-username"].focus({ preventScroll: true });
+    }, 450);
+  }
+
   function route() {
     viewToken++;
     var hash = location.hash || "";
     var catMatch = hash.match(/^#\/category\/([a-z0-9-]+)\/?$/);
     var categoriesMatch = hash.match(/^#\/categories\/?$/);
+    var contributeMatch = hash.match(/^#\/contribute\/?$/);
     var searchMatch = hash.match(/^#\/search\/(.+)$/);
     var detailMatch = hash.match(/^#\/detail\/([a-z0-9-]+)\/(.+)$/);
     if (catMatch) {
       openCategory(catMatch[1]);
     } else if (categoriesMatch) {
       showCategories();
+    } else if (contributeMatch) {
+      showHome();
+      scrollToContribute();
     } else if (searchMatch) {
       var q = "";
       try { q = decodeURIComponent(searchMatch[1]); } catch (e) { q = searchMatch[1]; }
@@ -1058,14 +1101,18 @@
   els["browse-all-btn"].addEventListener("click", function () {
     navigate("#/categories");
   });
+  els["nav-contribute"].addEventListener("click", function () {
+    navigate("#/contribute");
+  });
   window.addEventListener("hashchange", route);
 
   /* ---------- contribute form: build + copy only, nothing is sent ---------- */
 
-  function contribEntry(name, catName, why, tags) {
+  function contribEntry(name, catName, why, tags, username) {
     var lines = [];
     lines.push("Suggested repo: " + name);
     lines.push("Category: " + catName);
+    lines.push("Contributed by: " + username);
     lines.push("Why it is useful: " + (why || "—"));
     lines.push("Tags: " + (tags || "—"));
     lines.push("Suggested via the dev-marketplace contribute form.");
@@ -1074,11 +1121,18 @@
 
   els["contrib-form"].addEventListener("submit", function (ev) {
     ev.preventDefault();
+    var username = els["contrib-username"].value.trim();
     var name = els["contrib-name"].value.trim();
     var slug = els["contrib-category"].value;
     var why = els["contrib-why"].value.trim();
     var tags = els["contrib-tags"].value.trim().replace(/\s*,\s*/g, ", ");
     var err = els["contrib-error"];
+    if (!username) {
+      err.textContent = "Enter your name or username.";
+      err.hidden = false;
+      els["contrib-username"].focus();
+      return;
+    }
     if (!name) {
       err.textContent = "Enter the repo name.";
       err.hidden = false;
@@ -1093,7 +1147,7 @@
     }
     err.hidden = true;
     err.textContent = "";
-    els["contrib-output"].textContent = contribEntry(name, categoryName(slug), why, tags);
+    els["contrib-output"].textContent = contribEntry(name, categoryName(slug), why, tags, username);
     els["contrib-result"].hidden = false;
     els["contrib-status"].textContent = "";
     els["contrib-output"].focus();

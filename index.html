@@ -17,6 +17,7 @@
       <a class="nav-link" id="nav-categories" href="#/categories">Categories</a>
     </nav>
     <span class="build-badge">Public build</span>
+    <button id="nav-contribute" type="button" class="contribute-nav-button">Contribute repo</button>
   </div>
 </header>
 
@@ -64,12 +65,78 @@
         <p id="glance-note" class="muted"></p>
       </section>
 
-      <section id="picks-section" class="section" aria-label="Trending now">
+      <section id="about-section" class="section" aria-label="About the catalog">
         <div class="section-head">
-          <h2>Trending Now — Top Picks</h2>
-          <p>Highest-starred first. Stars decide the order.</p>
+          <h2>About the catalog</h2>
+          <p>What this marketplace is, and where its numbers come from.</p>
         </div>
-        <div id="picks" class="picks"><p class="muted">Loading top picks…</p></div>
+        <div class="about-grid">
+          <article class="about-card">
+            <h3>What it covers</h3>
+            <p><b id="about-total">…</b> public developer resources across <b id="about-cats">…</b> categories and <b id="about-langs">…</b> languages — frameworks, tools, libraries, and examples, from frontend and mobile to AI, DevOps, and security.</p>
+          </article>
+          <article class="about-card">
+            <h3>How it was gathered</h3>
+            <p>Records were collected from public sources — GitHub search and topics, curated lists, and developer communities — and most were verified against the public GitHub API. Every count on this page is read from the data files shipped with the site. Nothing here is estimated or made up.</p>
+          </article>
+          <article class="about-card">
+            <h3>How fresh is it</h3>
+            <p>Stars and last-updated dates are a snapshot taken October 14–25, 2026. This build was generated on <b id="about-build-date">…</b>. Treat star counts as a guide to what developers valued then, and check a repo itself for what changed since.</p>
+          </article>
+          <article class="about-card">
+            <h3>What this build shows</h3>
+            <p>Repo names and metadata only — category, languages, license, stars, forks, and last update. No owner names, descriptions, or links, so the public catalog stays focused on discovery. Search and every listing rank by stars, highest first.</p>
+          </article>
+        </div>
+      </section>
+
+      <section id="tips-section" class="section" aria-label="Building tips">
+        <div class="section-head">
+          <h2>Building tips</h2>
+          <p>Good habits for building with open-source repos.</p>
+        </div>
+        <div class="tips-grid">
+          <article class="tip-card">
+            <span class="tip-num">01</span>
+            <h3>Stars are a signal, not a verdict</h3>
+            <p>A high star count means many developers bookmarked a repo, not that it fits your job. Read what it does before you commit to it.</p>
+          </article>
+          <article class="tip-card">
+            <span class="tip-num">02</span>
+            <h3>Check maintenance, not just popularity</h3>
+            <p>Look at the last update date and whether the repo is archived. A repo that stopped moving can still work, but you inherit its bugs.</p>
+          </article>
+          <article class="tip-card">
+            <span class="tip-num">03</span>
+            <h3>Read the license first</h3>
+            <p>The license decides what you can build on top of a repo. Check it before the repo becomes part of your product, not after.</p>
+          </article>
+          <article class="tip-card">
+            <span class="tip-num">04</span>
+            <h3>Match the repo to the use case</h3>
+            <p>The best repo is the one that solves your exact problem, not the most famous one in the category. Define the job first, then search.</p>
+          </article>
+          <article class="tip-card">
+            <span class="tip-num">05</span>
+            <h3>Start from a working example</h3>
+            <p>Prefer repos with examples you can run in minutes. If you cannot get a small demo working quickly, budget real time for learning it.</p>
+          </article>
+          <article class="tip-card">
+            <span class="tip-num">06</span>
+            <h3>Prototype small before committing</h3>
+            <p>Build the smallest thing that proves the repo works for you. It is far cheaper to swap libraries in a prototype than in a finished product.</p>
+          </article>
+          <article class="tip-card">
+            <span class="tip-num">07</span>
+            <h3>Look at activity beyond the snapshot</h3>
+            <p>Stars and dates here are a snapshot. Before adopting a repo, check its recent issues and commits to see whether it is still alive.</p>
+          </article>
+          <article class="tip-card">
+            <span class="tip-num">08</span>
+            <h3>Prefer maintained over merely popular</h3>
+            <p>A smaller, actively maintained repo often beats a famous one that stopped moving. Maintenance is a feature, not a footnote.</p>
+          </article>
+        </div>
       </section>
 
       <section id="how-section" class="section" aria-label="How it works">
@@ -127,6 +194,11 @@
         <p class="section-lede">Found a repo that belongs here? Fill in the details below. The form builds a formatted suggestion you can copy and paste as an issue on the dev-marketplace repo. Every suggestion is reviewed before it joins the catalog.</p>
         <form id="contrib-form" class="contrib-form" novalidate>
           <div class="contrib-field">
+            <label for="contrib-username">Your name / username <span class="required" aria-hidden="true">*</span></label>
+            <input id="contrib-username" name="username" type="text" placeholder="e.g. valt" autocomplete="off" required aria-describedby="contrib-error">
+            <p class="field-hint">The name shown with your contribution once it is added. No account needed — just the name you want shown.</p>
+          </div>
+          <div class="contrib-field">
             <label for="contrib-name">Repo name <span class="required" aria-hidden="true">*</span></label>
             <input id="contrib-name" name="repo" type="text" placeholder="e.g. fastapi" autocomplete="off" required aria-describedby="contrib-error">
             <p class="field-hint">The repo name as it appears on its hosting page, without the owner.</p>
@@ -165,7 +237,14 @@
     </div>
 
     <section id="categories-section" class="section" aria-label="All categories" hidden>
-      <div class="section-head">
+      <section id="picks-section" aria-label="Trending now">
+        <div class="section-head">
+          <h2>Trending Now — Top Picks</h2>
+          <p>Highest-starred first. Stars decide the order.</p>
+        </div>
+        <div id="picks" class="picks"><p class="muted">Loading top picks…</p></div>
+      </section>
+      <div class="section-head categories-head">
         <h2>Browse by category</h2>
         <p>Every listing opens sorted by stars, highest first.</p>
       </div>
