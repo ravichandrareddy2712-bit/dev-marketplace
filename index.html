@@ -10,55 +10,133 @@
 </head>
 <body>
 <header class="site-header">
-  <div class="wrap">
-    <p class="brand">REPOVERSE</p>
-    <p class="tagline">A public catalog of developer resources. Repo names only, no owners, no descriptions, no links.</p>
+  <div class="wrap nav-inner">
+    <p class="brand"><span class="brand-mark">R</span> REPOVERSE</p>
+    <span class="build-badge">Public build</span>
   </div>
 </header>
 
-<main class="wrap">
-  <section class="hero" aria-label="Catalog summary">
-    <p class="hero-count"><span id="hero-total">Loading…</span> <span class="hero-label">repos</span></p>
-    <p class="hero-sub"><span id="hero-categories">Loading…</span> categories · <span id="hero-build">public build</span></p>
-  </section>
+<main>
+  <section class="hero" id="hero" aria-label="Catalog summary">
+    <div class="wrap">
+      <div class="hero-inner">
+        <p class="hero-eyebrow">Public catalog · Developer resources</p>
+        <h1 class="hero-title">Find the repo<br><span class="accent-line">that fits your build.</span></h1>
+        <p class="hero-sub">A public catalog of developer resources. Repo names only, no owners, no descriptions, no links. Everything ranked by stars.</p>
 
-  <section class="search-block" aria-label="Search">
-    <form id="search-form" autocomplete="off">
-      <label class="visually-hidden" for="search-input">Search repo names</label>
-      <input id="search-input" type="search" placeholder="Search repo names…" aria-describedby="search-hint" aria-expanded="false" aria-controls="search-suggest">
-      <button type="submit">Search</button>
-    </form>
-    <p id="search-hint" class="hint">Type at least 2 characters. Search matches any part of a repo name.</p>
-    <div id="search-suggest" class="suggest" role="listbox" aria-label="Suggestions" hidden></div>
-  </section>
-
-  <div id="error-box" class="error-box" role="alert" hidden></div>
-
-  <section id="picks-section" aria-label="Trending now">
-    <h2>Trending Now — Top Picks</h2>
-    <div id="picks" class="picks"><p class="muted">Loading top picks…</p></div>
-  </section>
-
-  <section id="home-section" aria-label="Categories">
-    <h2>Browse by category</h2>
-    <div id="category-grid" class="category-grid"><p class="muted">Loading categories…</p></div>
-  </section>
-
-  <section id="results-section" aria-label="Results" hidden>
-    <div class="results-head">
-      <h2 id="results-title">Results</h2>
-      <button id="back-home" type="button" class="link-button">← All categories</button>
+        <div class="hero-stats">
+          <div class="hero-stat"><b id="hero-total">Loading…</b><span>repos</span></div>
+          <div class="hero-stat"><b id="hero-categories">Loading…</b><span>categories</span></div>
+          <div class="hero-stat"><b id="hero-languages">Loading…</b><span>languages</span></div>
+          <div class="hero-stat"><b id="hero-popular">Loading…</b><span>popular · 1,000+ ★</span></div>
+        </div>
+        <p class="hero-build"><span id="hero-build">public build</span></p>
+      </div>
     </div>
-    <p id="results-meta" class="muted"></p>
-    <div id="results" class="results"></div>
-    <nav id="pager" class="pager" aria-label="Pages"></nav>
   </section>
 
-  <section id="detail-section" aria-label="Record details" hidden>
-    <h2>Record details</h2>
-    <div id="detail" class="detail"></div>
-    <button id="detail-close" type="button" class="link-button">Close details</button>
-  </section>
+  <div class="wrap">
+    <div class="search-block" aria-label="Search">
+      <form id="search-form" class="searchbar" autocomplete="off">
+        <span class="search-icon" aria-hidden="true">⌕</span>
+        <label class="visually-hidden" for="search-input">Search repo names</label>
+        <input id="search-input" type="search" placeholder="Search repo names…" aria-describedby="search-hint" aria-expanded="false" aria-controls="search-suggest" aria-autocomplete="list" role="combobox">
+        <button type="submit">Search</button>
+      </form>
+      <p id="search-hint" class="hint">Type to see suggestions, best-starred first. Search matches any part of a repo name. Use ↑ ↓ to move through suggestions, Enter to open one.</p>
+      <div id="search-suggest" class="suggest" role="listbox" aria-label="Suggestions" hidden></div>
+    </div>
+
+    <div id="error-box" class="error-box" role="alert" hidden></div>
+
+    <section id="picks-section" class="section" aria-label="Trending now">
+      <div class="section-head">
+        <h2>Trending Now — Top Picks</h2>
+        <p>Highest-starred first. Stars decide the order.</p>
+      </div>
+      <div id="picks" class="picks"><p class="muted">Loading top picks…</p></div>
+    </section>
+
+    <section id="home-section" class="section" aria-label="Categories">
+      <div class="section-head">
+        <h2>Browse by category</h2>
+        <p>Every listing opens sorted by stars, highest first.</p>
+      </div>
+      <div id="category-grid" class="category-grid"><p class="muted">Loading categories…</p></div>
+    </section>
+
+    <section id="results-section" class="section" aria-label="Results" hidden>
+      <div class="results-head">
+        <h2 id="results-title">Results</h2>
+        <button id="back-home" type="button" class="link-button">← All categories</button>
+      </div>
+      <p id="results-meta" class="muted"></p>
+
+      <div id="filter-bar" class="filter-bar" hidden>
+        <div class="filter-row">
+          <label class="filter-field">Language
+            <select id="filter-language"></select>
+          </label>
+          <label class="filter-field">License
+            <select id="filter-license"></select>
+          </label>
+          <label class="filter-field">Min stars
+            <select id="filter-min-stars">
+              <option value="0">Any stars</option>
+              <option value="100">100+ stars</option>
+              <option value="500">500+ stars</option>
+              <option value="1000">1,000+ stars</option>
+              <option value="5000">5,000+ stars</option>
+              <option value="10000">10,000+ stars</option>
+              <option value="50000">50,000+ stars</option>
+            </select>
+          </label>
+          <label class="filter-field">Updated
+            <select id="filter-updated">
+              <option value="0">Any time</option>
+              <option value="30">Last 30 days</option>
+              <option value="90">Last 90 days</option>
+              <option value="365">Last year</option>
+            </select>
+          </label>
+          <label class="filter-field" id="filter-subcategory-wrap">Subcategory
+            <select id="filter-subcategory"></select>
+          </label>
+          <label class="filter-field" id="filter-category-wrap" hidden>Category
+            <select id="filter-category"></select>
+          </label>
+          <label class="filter-field">Sort
+            <select id="filter-sort">
+              <option value="stars">Stars: high to low</option>
+              <option value="forks">Forks: high to low</option>
+              <option value="updated">Recently updated</option>
+              <option value="name">Name: A–Z</option>
+            </select>
+          </label>
+        </div>
+        <div class="filter-row filter-row-toggles">
+          <button id="filter-popular" type="button" class="toggle-button pop-chip" aria-pressed="false">★ Popular (1,000+)</button>
+          <label class="filter-check"><input id="filter-hide-archived" type="checkbox"> Hide archived</label>
+          <button id="filter-clear" type="button" class="link-button" hidden>Clear all filters</button>
+          <button id="filter-load-full" type="button" class="link-button" hidden>Load language &amp; license filters</button>
+          <span id="filter-note" class="filter-note" hidden></span>
+        </div>
+      </div>
+
+      <div id="results" class="results"></div>
+      <nav id="pager" class="pager" aria-label="Pages"></nav>
+    </section>
+
+    <section id="detail-section" class="section" aria-label="Record details" hidden>
+      <div class="results-head">
+        <h2 id="detail-title">Record details</h2>
+        <button id="detail-back" type="button" class="link-button">← Back</button>
+      </div>
+      <div id="detail" class="detail"></div>
+      <h3 id="related-heading" hidden>Related repos</h3>
+      <div id="related" class="related"></div>
+    </section>
+  </div>
 </main>
 
 <footer class="site-footer">
