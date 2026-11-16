@@ -40,7 +40,7 @@
    "error-box", "home-sections", "picks-section", "picks",
    "cat-glance", "glance-note", "browse-all-btn", "browse-note",
    "categories-section", "categories-grid",
-   "results-section", "results-title", "results-meta", "results", "pager",
+   "results-section", "results-title", "results-meta", "search-note", "results", "pager",
    "back-home", "filter-bar", "filter-language", "filter-license",
    "filter-min-stars", "filter-updated", "filter-subcategory",
    "filter-subcategory-wrap", "filter-category", "filter-category-wrap",
@@ -512,7 +512,11 @@
   function renderRows(container, items) {
     container.innerHTML = "";
     if (!items.length) {
-      container.innerHTML = '<p class="muted">No results match the current filters.</p>';
+      if (list && list.kind === "search" && list.baseCount === 0) {
+        renderEmptySearch(container);
+      } else {
+        container.innerHTML = '<p class="muted">No results match the current filters.</p>';
+      }
       return;
     }
     items.forEach(function (item) {
@@ -602,6 +606,8 @@
     els["results-section"].hidden = false;
     els["results-title"].textContent = title;
     els["results-meta"].textContent = meta;
+    els["search-note"].hidden = true;
+    els["search-note"].textContent = "";
     updateNav();
   }
 
@@ -633,6 +639,151 @@
     });
   }
 
+  /* ---------- name search: plain keyword matching, no model ---------- */
+
+  /* Words that carry no meaning when someone types a question. Only used
+     for multi-word queries; single-word searches keep the exact old
+     behavior. Content-bearing words (open, source, free, new, app) are
+     deliberately NOT on this list. */
+  var STOP_WORDS = {};
+  ["a", "an", "the",
+   "i", "me", "my", "mine", "we", "us", "our", "ours", "you", "your", "yours",
+   "he", "him", "his", "she", "her", "hers", "it", "its", "they", "them", "their", "theirs",
+   "this", "that", "these", "those", "there", "here",
+   "am", "is", "are", "was", "were", "be", "been", "being",
+   "do", "does", "did", "doing", "done",
+   "have", "has", "had", "having",
+   "can", "could", "will", "would", "shall", "should", "may", "might", "must",
+   "need", "needs", "needed", "needing", "want", "wants", "wanted", "wanting",
+   "wish", "wishes", "like", "likes",
+   "repo", "repos", "repository", "repositories",
+   "help", "helps", "helping", "helped",
+   "please", "find", "finds", "finding", "found",
+   "show", "shows", "showing", "shown", "give", "gives", "giving", "given",
+   "get", "gets", "getting", "got", "make", "makes", "making", "made",
+   "build", "builds", "building", "built", "create", "creates", "creating", "created",
+   "use", "uses", "using", "used", "work", "works", "working", "worked",
+   "run", "runs", "running",
+   "to", "for", "with", "of", "in", "on", "at", "by", "from", "about",
+   "into", "over", "under", "after", "before", "between", "through", "without", "within",
+   "and", "or", "but", "if", "then", "than", "so", "as", "because",
+   "what", "which", "who", "whom", "whose", "when", "where", "why", "how",
+   "any", "some", "all", "every", "each", "no", "not", "only", "just",
+   "very", "really", "much", "many", "more", "most",
+   "one", "something", "anything", "everything", "nothing", "thing", "things", "way", "able",
+   "don", "isn", "aren", "wasn", "weren", "doesn", "didn", "won", "wouldn",
+   "shouldn", "haven", "hasn", "hadn", "ain", "couldn", "mustn", "needn"
+  ].forEach(function (w) { STOP_WORDS[w] = true; });
+
+  function searchWords(q) {
+    return q.toLowerCase().split(/[^a-z0-9]+/).filter(function (w) { return w.length > 0; });
+  }
+
+  function isQuestionLike(q, words) {
+    if (q.indexOf("?") !== -1) return true;
+    if (words.length >= 3) return true;
+    var qw = { what: 1, how: 1, which: 1, who: 1, whom: 1, whose: 1, when: 1,
+               where: 1, why: 1, need: 1, needs: 1, want: 1, wants: 1 };
+    for (var i = 0; i < words.length; i++) if (qw[words[i]]) return true;
+    return false;
+  }
+
+  /* Plain keyword matching over repo names. Single-word queries keep the
+     exact old behavior (whole-string substring match). Multi-word queries
+     match the key words: names containing ALL key words, falling back to
+     names containing ANY key word when no name has them all. */
+  function matchSearchEntries(entries, q) {
+    var words = searchWords(q);
+    var needle = q.toLowerCase();
+    function wholeString(e) { return e.n.toLowerCase().indexOf(needle) !== -1; }
+    if (words.length <= 1) {
+      return { matches: entries.filter(wholeString), mode: "exact", terms: null };
+    }
+    var seen = {}, terms = [];
+    words.forEach(function (w) {
+      if (w.length < 2 || STOP_WORDS[w] || seen[w]) return;
+      seen[w] = true;
+      terms.push(w);
+    });
+    if (!terms.length) {
+      return { matches: entries.filter(wholeString), mode: "exact", terms: null };
+    }
+    var all = entries.filter(function (e) {
+      var n = e.n.toLowerCase();
+      for (var i = 0; i < terms.length; i++) if (n.indexOf(terms[i]) === -1) return false;
+      return true;
+    });
+    if (all.length) return { matches: all, mode: "all", terms: terms };
+    var any = entries.filter(function (e) {
+      var n = e.n.toLowerCase();
+      for (var i = 0; i < terms.length; i++) if (n.indexOf(terms[i]) !== -1) return true;
+      return false;
+    });
+    return { matches: any, mode: "any", terms: terms };
+  }
+
+  function searchLoadingHtml(status) {
+    return '<div class="search-loading" role="status" aria-live="polite">' +
+      '<span class="spinner" aria-hidden="true"></span>' +
+      '<span class="search-loading-text">' + esc(status) + "</span></div>";
+  }
+
+  function setSearchStatus(status) {
+    var el = els.results.querySelector(".search-loading-text");
+    if (el) el.textContent = status;
+  }
+
+  /* Honest note for question-like queries: no LLM or Laya runs in this
+     site yet, and the note says so. */
+  function showQuestionHint(terms, mode) {
+    var note = els["search-note"];
+    var text = "Question understanding with LLM + Laya is coming soon — it is not running in this search yet. " +
+      "Right now search matches repo names only, so these are the closest name matches";
+    if (terms && terms.length) {
+      text += " for the key words in your question: " +
+        terms.map(function (t) { return "“" + t + "”"; }).join(", ");
+    }
+    text += ".";
+    if (mode === "any") {
+      text += " No repo name contains all of those words, so these match at least one of them.";
+    }
+    note.textContent = text;
+    note.hidden = false;
+  }
+
+  /* Zero-match search: say why, in plain words, and offer a way forward.
+     Only used when the search itself matched nothing; filter-narrowed
+     empty lists keep the existing "current filters" message. */
+  function renderEmptySearch(container) {
+    var q = list.query || "";
+    var terms = list.searchTerms;
+    var mode = list.matchMode;
+    var why;
+    if (terms && terms.length) {
+      var quoted = terms.map(function (t) { return "“" + t + "”"; });
+      why = mode === "any"
+        ? "No repo name contains any of " + quoted.join(", ") + "."
+        : "No repo name contains all of " + quoted.join(", ") + ".";
+    } else {
+      why = "No repo name contains “" + q + "”.";
+    }
+    var box = document.createElement("div");
+    box.className = "empty-search";
+    var head = document.createElement("p");
+    head.innerHTML = "<b>" + esc(why) + "</b>";
+    var body = document.createElement("p");
+    body.textContent = "Search matches repo names only. Try fewer words, a repo name such as “fastapi”, or browse the categories instead.";
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "cta-button";
+    btn.textContent = "Browse all categories →";
+    btn.addEventListener("click", function () { navigate("#/categories"); });
+    box.appendChild(head);
+    box.appendChild(body);
+    box.appendChild(btn);
+    container.appendChild(box);
+  }
+
   function openSearch(query) {
     hideError();
     var q = (query || "").trim();
@@ -643,19 +794,27 @@
     currentView = "search";
     list = newListState("search", "search:" + q);
     list.query = q;
+    var questionLike = isQuestionLike(q, searchWords(q));
     var token = viewToken;
     showResults('Search: "' + q + '"', "Searching…");
     els["filter-bar"].hidden = true;
-    els.results.innerHTML = '<p class="muted">Searching all names…</p>';
+    els.results.innerHTML = searchLoadingHtml("Loading the name index…");
     els.pager.innerHTML = "";
     loadAllShards().then(function (entries) {
-      if (token !== viewToken) return;
-      var needle = q.toLowerCase();
-      var matches = entries.filter(function (e) {
-        return e.n.toLowerCase().indexOf(needle) !== -1;
+      if (token !== viewToken) return null;
+      /* Yield so the staged status paints before the synchronous match. */
+      setSearchStatus("Matching names…");
+      return new Promise(function (resolve) {
+        setTimeout(function () { resolve(entries); }, 0);
       });
-      list.items = matches.map(itemFromEntry);
-      list.baseCount = matches.length;
+    }).then(function (entries) {
+      if (!entries || token !== viewToken) return;
+      var found = matchSearchEntries(entries, q);
+      list.items = found.matches.map(itemFromEntry);
+      list.baseCount = found.matches.length;
+      list.searchTerms = found.terms;
+      list.matchMode = found.mode;
+      if (questionLike) showQuestionHint(found.terms, found.mode);
       populateFilterOptions();
       els["filter-bar"].hidden = false;
       renderList();
