@@ -1,4 +1,4 @@
-/* REPOVERSE public build. Vanilla JS, no framework. All data comes from
+/* dev-marketplace public build. Vanilla JS, no framework. All data comes from
    relative data/ files shipped with this site. No outside requests.
    Rendered fields only: repo, category, subcategory, languages,
    frameworks, tags, stars, forks, license, last_updated, archived. */
@@ -20,7 +20,7 @@
   var savedStates = {};     // route key -> {page, filters}
   var detailHints = null;   // {slug, name, stars, file, context}
   var detailReturnHash = "#/";
-  var currentView = "home"; // home | category | search | detail
+  var currentView = "home"; // home | categories | category | search | detail
   var viewToken = 0;        // guards stale async loads after navigation
   var list = null;          // active category/search list state
 
@@ -32,15 +32,22 @@
 
   var els = {};
   ["hero", "hero-total", "hero-categories", "hero-languages", "hero-popular",
-   "hero-build", "search-form", "search-input", "search-suggest",
-   "error-box", "picks-section", "picks", "home-section", "category-grid",
+   "hero-build", "hero-total-inline", "hero-cats-inline",
+   "search-form", "search-input", "search-suggest",
+   "error-box", "home-sections", "picks-section", "picks",
+   "cat-glance", "glance-note", "browse-all-btn", "browse-note",
+   "categories-section", "categories-grid",
    "results-section", "results-title", "results-meta", "results", "pager",
    "back-home", "filter-bar", "filter-language", "filter-license",
    "filter-min-stars", "filter-updated", "filter-subcategory",
    "filter-subcategory-wrap", "filter-category", "filter-category-wrap",
    "filter-sort", "filter-popular", "filter-hide-archived", "filter-clear",
    "filter-note", "filter-load-full", "detail-section", "detail-title",
-   "detail", "detail-back", "related-heading", "related"].forEach(function (id) {
+   "detail", "detail-back", "related-heading", "related",
+   "nav-home", "nav-categories",
+   "contrib-form", "contrib-name", "contrib-category", "contrib-why",
+   "contrib-tags", "contrib-error", "contrib-result", "contrib-output",
+   "contrib-copy", "contrib-status"].forEach(function (id) {
     els[id] = document.getElementById(id);
   });
 
@@ -534,24 +541,49 @@
     els.pager.appendChild(info);
   }
 
+  function updateNav() {
+    var home = currentView === "home";
+    var cats = currentView === "categories" || currentView === "category";
+    els["nav-home"].classList.toggle("nav-active", home);
+    els["nav-categories"].classList.toggle("nav-active", cats);
+    if (home) { els["nav-home"].setAttribute("aria-current", "page"); }
+    else { els["nav-home"].removeAttribute("aria-current"); }
+    if (cats) { els["nav-categories"].setAttribute("aria-current", "page"); }
+    else { els["nav-categories"].removeAttribute("aria-current"); }
+  }
+
   function showHome() {
     currentView = "home";
     list = null;
     els.hero.hidden = false;
+    els["home-sections"].hidden = false;
+    els["categories-section"].hidden = true;
     els["results-section"].hidden = true;
     els["detail-section"].hidden = true;
-    els["picks-section"].hidden = false;
-    els["home-section"].hidden = false;
+    updateNav();
+  }
+
+  function showCategories() {
+    currentView = "categories";
+    list = null;
+    els.hero.hidden = true;
+    els["home-sections"].hidden = true;
+    els["categories-section"].hidden = false;
+    els["results-section"].hidden = true;
+    els["detail-section"].hidden = true;
+    updateNav();
+    window.scrollTo(0, 0);
   }
 
   function showResults(title, meta) {
     els.hero.hidden = true;
-    els["picks-section"].hidden = true;
-    els["home-section"].hidden = true;
+    els["home-sections"].hidden = true;
+    els["categories-section"].hidden = true;
     els["detail-section"].hidden = true;
     els["results-section"].hidden = false;
     els["results-title"].textContent = title;
     els["results-meta"].textContent = meta;
+    updateNav();
   }
 
   function openCategory(slug) {
@@ -635,9 +667,10 @@
   function showDetailLoading(name) {
     currentView = "detail";
     list = null;
+    updateNav();
     els.hero.hidden = true;
-    els["picks-section"].hidden = true;
-    els["home-section"].hidden = true;
+    els["home-sections"].hidden = true;
+    els["categories-section"].hidden = true;
     els["results-section"].hidden = true;
     els["detail-section"].hidden = false;
     els["detail-title"].textContent = name || "Record details";
@@ -710,9 +743,10 @@
   function renderDetail(r, context, slug) {
     currentView = "detail";
     list = null;
+    updateNav();
     els.hero.hidden = true;
-    els["picks-section"].hidden = true;
-    els["home-section"].hidden = true;
+    els["home-sections"].hidden = true;
+    els["categories-section"].hidden = true;
     els["results-section"].hidden = true;
     els["detail-section"].hidden = false;
     els["detail-title"].textContent = r.repo;
@@ -786,8 +820,30 @@
       });
     }
 
-    els["category-grid"].innerHTML = "";
+    /* Inline hero counts, so the intro text stays truthful. */
+    els["hero-total-inline"].textContent = fmt(manifest.total);
+    els["hero-cats-inline"].textContent = fmt(manifest.categories.length);
+
     var cats = manifest.categories.slice().sort(function (a, b) { return b.count - a.count; });
+
+    /* Categories at a glance: top 8 by count. The full grid lives on #/categories. */
+    els["cat-glance"].innerHTML = "";
+    cats.slice(0, 8).forEach(function (c) {
+      var g = document.createElement("button");
+      g.type = "button";
+      g.className = "glance-chip";
+      g.innerHTML = '<span class="glance-name">' + esc(c.name) + "</span>" +
+        '<span class="glance-count">' + fmt(c.count) + "</span>";
+      g.addEventListener("click", function () {
+        navigate("#/category/" + c.slug);
+      });
+      els["cat-glance"].appendChild(g);
+    });
+    els["glance-note"].textContent = "Top 8 of " + fmt(manifest.categories.length) +
+      " categories by size. The full list opens when you browse categories.";
+
+    /* Full category grid for the #/categories view. */
+    els["categories-grid"].innerHTML = "";
     cats.forEach(function (c) {
       var b = document.createElement("button");
       b.type = "button";
@@ -797,7 +853,28 @@
       b.addEventListener("click", function () {
         navigate("#/category/" + c.slug);
       });
-      els["category-grid"].appendChild(b);
+      els["categories-grid"].appendChild(b);
+    });
+
+    /* Browse-all button + note, with the live category count. */
+    els["browse-all-btn"].textContent = "Browse all " + fmt(manifest.categories.length) + " categories →";
+    els["browse-note"].textContent = "All " + fmt(manifest.categories.length) +
+      " categories, every listing sorted by stars.";
+
+    /* Contribute form: category dropdown from the manifest. */
+    var sel = els["contrib-category"];
+    sel.innerHTML = "";
+    var none = document.createElement("option");
+    none.value = "";
+    none.textContent = "Choose a category…";
+    sel.appendChild(none);
+    manifest.categories.slice().sort(function (a, b) {
+      return a.name < b.name ? -1 : a.name > b.name ? 1 : 0;
+    }).forEach(function (c) {
+      var opt = document.createElement("option");
+      opt.value = c.slug;
+      opt.textContent = c.name;
+      sel.appendChild(opt);
     });
   }
 
@@ -889,10 +966,13 @@
     viewToken++;
     var hash = location.hash || "";
     var catMatch = hash.match(/^#\/category\/([a-z0-9-]+)\/?$/);
+    var categoriesMatch = hash.match(/^#\/categories\/?$/);
     var searchMatch = hash.match(/^#\/search\/(.+)$/);
     var detailMatch = hash.match(/^#\/detail\/([a-z0-9-]+)\/(.+)$/);
     if (catMatch) {
       openCategory(catMatch[1]);
+    } else if (categoriesMatch) {
+      showCategories();
     } else if (searchMatch) {
       var q = "";
       try { q = decodeURIComponent(searchMatch[1]); } catch (e) { q = searchMatch[1]; }
@@ -975,7 +1055,70 @@
   els["detail-back"].addEventListener("click", function () {
     navigate(detailReturnHash);
   });
+  els["browse-all-btn"].addEventListener("click", function () {
+    navigate("#/categories");
+  });
   window.addEventListener("hashchange", route);
+
+  /* ---------- contribute form: build + copy only, nothing is sent ---------- */
+
+  function contribEntry(name, catName, why, tags) {
+    var lines = [];
+    lines.push("Suggested repo: " + name);
+    lines.push("Category: " + catName);
+    lines.push("Why it is useful: " + (why || "—"));
+    lines.push("Tags: " + (tags || "—"));
+    lines.push("Suggested via the dev-marketplace contribute form.");
+    return lines.join("\n");
+  }
+
+  els["contrib-form"].addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    var name = els["contrib-name"].value.trim();
+    var slug = els["contrib-category"].value;
+    var why = els["contrib-why"].value.trim();
+    var tags = els["contrib-tags"].value.trim().replace(/\s*,\s*/g, ", ");
+    var err = els["contrib-error"];
+    if (!name) {
+      err.textContent = "Enter the repo name.";
+      err.hidden = false;
+      els["contrib-name"].focus();
+      return;
+    }
+    if (!slug) {
+      err.textContent = "Choose a category.";
+      err.hidden = false;
+      els["contrib-category"].focus();
+      return;
+    }
+    err.hidden = true;
+    err.textContent = "";
+    els["contrib-output"].textContent = contribEntry(name, categoryName(slug), why, tags);
+    els["contrib-result"].hidden = false;
+    els["contrib-status"].textContent = "";
+    els["contrib-output"].focus();
+  });
+
+  els["contrib-copy"].addEventListener("click", function () {
+    var text = els["contrib-output"].textContent;
+    var done = function (ok) {
+      els["contrib-status"].textContent = ok
+        ? "Copied — paste it as an issue on the dev-marketplace repo."
+        : "Copy did not work in this browser — select the text above and copy it by hand.";
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () { done(true); }, function () { done(false); });
+    } else {
+      var range = document.createRange();
+      range.selectNodeContents(els["contrib-output"]);
+      var sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+      try { done(document.execCommand("copy")); }
+      catch (e) { done(false); }
+      sel.removeAllRanges();
+    }
+  });
 
   /* Boot: manifest first. Any failure shows a visible message, never blank. */
   fetchJson("data/manifest.json").then(function (m) {
@@ -988,7 +1131,8 @@
     els["hero-languages"].textContent = "—";
     els["hero-popular"].textContent = "—";
     els.picks.innerHTML = "";
-    els["category-grid"].innerHTML = "";
+    els["categories-grid"].innerHTML = "";
+    els["cat-glance"].innerHTML = "";
     showError("Could not load the catalog data files. Serve this folder with a local static file server and reload. (" + err.message + ")");
   });
 })();

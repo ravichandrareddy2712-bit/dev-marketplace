@@ -1,6 +1,6 @@
-# REPOVERSE public catalog build
+# dev-marketplace public catalog build
 
-Public, stripped, static build of the REPOVERSE catalog.
+Public, stripped, static build of the dev-marketplace catalog.
 Build date: 2026-11-16. Build tag: public-stripped-v1.
 
 Records in this public build: 323,195.

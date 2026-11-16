@@ -3,34 +3,31 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>REPOVERSE — Public Catalog</title>
-<meta name="description" content="REPOVERSE public catalog: repo names without owners, descriptions, or links.">
+<title>dev-marketplace — Find the repo that fits your build</title>
+<meta name="description" content="dev-marketplace: a public catalog of developer resources. Search repo names, filter by language, license, and stars. No owners, no descriptions, no links.">
 <link rel="icon" href="data:,">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <header class="site-header">
   <div class="wrap nav-inner">
-    <p class="brand"><span class="brand-mark">R</span> REPOVERSE</p>
+    <a class="brand" href="#/" id="brand-home"><span class="brand-mark">D</span> DEV-MARKETPLACE</a>
+    <nav class="nav-links" aria-label="Main">
+      <a class="nav-link" id="nav-home" href="#/">Home</a>
+      <a class="nav-link" id="nav-categories" href="#/categories">Categories</a>
+    </nav>
     <span class="build-badge">Public build</span>
   </div>
 </header>
 
 <main>
-  <section class="hero" id="hero" aria-label="Catalog summary">
+  <section class="hero" id="hero" aria-label="About dev-marketplace">
     <div class="wrap">
       <div class="hero-inner">
-        <p class="hero-eyebrow">Public catalog · Developer resources</p>
+        <p class="hero-eyebrow">Developer resource marketplace</p>
         <h1 class="hero-title">Find the repo<br><span class="accent-line">that fits your build.</span></h1>
-        <p class="hero-sub">A public catalog of developer resources. Repo names only, no owners, no descriptions, no links. Everything ranked by stars.</p>
-
-        <div class="hero-stats">
-          <div class="hero-stat"><b id="hero-total">Loading…</b><span>repos</span></div>
-          <div class="hero-stat"><b id="hero-categories">Loading…</b><span>categories</span></div>
-          <div class="hero-stat"><b id="hero-languages">Loading…</b><span>languages</span></div>
-          <div class="hero-stat"><b id="hero-popular">Loading…</b><span>popular · 1,000+ ★</span></div>
-        </div>
-        <p class="hero-build"><span id="hero-build">public build</span></p>
+        <p class="hero-sub">dev-marketplace is a marketplace of open developer resources — <b id="hero-total-inline">…</b> repos across <b id="hero-cats-inline">…</b> categories, from frontend frameworks and APIs to AI agents, DevOps, mobile, and security tooling. Every listing is ranked by stars, so the work developers trust most rises to the top.</p>
+        <p class="hero-sub">Search by name, filter by language, license, stars, or last update, and open any repo to see its details and related work. No accounts and no tracking — just the catalog, ranked by what the community values.</p>
       </div>
     </div>
   </section>
@@ -49,26 +46,136 @@
 
     <div id="error-box" class="error-box" role="alert" hidden></div>
 
-    <section id="picks-section" class="section" aria-label="Trending now">
-      <div class="section-head">
-        <h2>Trending Now — Top Picks</h2>
-        <p>Highest-starred first. Stars decide the order.</p>
-      </div>
-      <div id="picks" class="picks"><p class="muted">Loading top picks…</p></div>
-    </section>
+    <div id="home-sections">
+      <section id="stats-section" class="section" aria-label="Catalog at a glance">
+        <div class="section-head">
+          <h2>The catalog at a glance</h2>
+          <p>Counts from the data files shipped with this site.</p>
+        </div>
+        <div class="hero-stats">
+          <div class="hero-stat"><b id="hero-total">Loading…</b><span>repos</span></div>
+          <div class="hero-stat"><b id="hero-categories">Loading…</b><span>categories</span></div>
+          <div class="hero-stat"><b id="hero-languages">Loading…</b><span>languages</span></div>
+          <div class="hero-stat"><b id="hero-popular">Loading…</b><span>popular · 1,000+ ★</span></div>
+        </div>
+        <p class="hero-build"><span id="hero-build">public build</span></p>
+        <h3>Largest categories</h3>
+        <div id="cat-glance" class="glance-grid"><p class="muted">Loading categories…</p></div>
+        <p id="glance-note" class="muted"></p>
+      </section>
 
-    <section id="home-section" class="section" aria-label="Categories">
+      <section id="picks-section" class="section" aria-label="Trending now">
+        <div class="section-head">
+          <h2>Trending Now — Top Picks</h2>
+          <p>Highest-starred first. Stars decide the order.</p>
+        </div>
+        <div id="picks" class="picks"><p class="muted">Loading top picks…</p></div>
+      </section>
+
+      <section id="how-section" class="section" aria-label="How it works">
+        <div class="section-head">
+          <h2>How it works</h2>
+          <p>Search today. Intelligent discovery next.</p>
+        </div>
+        <div class="how-grid">
+          <article class="how-card">
+            <span class="live-badge">Live now</span>
+            <h3>Search &amp; filter</h3>
+            <p>Search repo names, filter by language, license, minimum stars, or last update, and sort by stars, forks, or recency. Stars decide the order on every listing.</p>
+          </article>
+          <article class="how-card">
+            <span class="soon-badge">Coming soon</span>
+            <h3>Intelligent discovery</h3>
+            <p>Describe what you are building in plain words. A language model turns your requirement into a structured brief, Laya System 1 ranks the candidates with typed decisions, and clarifying questions narrow the shortlist until it fits.</p>
+          </article>
+          <article class="how-card">
+            <span class="soon-badge">Coming soon</span>
+            <h3>MCP + API access</h3>
+            <p>Connect Claude Code, Claude Desktop, Codex, and other AI tools straight to the catalog, or query it directly with an API key. Ranked repos, inside your workflow.</p>
+          </article>
+        </div>
+      </section>
+
+      <section id="mcp-section" class="section" aria-label="Connect your AI tools">
+        <div class="section-head">
+          <h2>Connect your AI tools</h2>
+          <span class="soon-badge">Coming soon</span>
+        </div>
+        <p class="section-lede">dev-marketplace will connect directly to the AI tools you already code with. Add it once as a custom connector, and ask your AI assistant for what you are building — it searches the catalog and brings back ranked repos, with stars, languages, and licenses, without leaving your editor.</p>
+        <div class="mcp-grid">
+          <div class="mcp-card">
+            <h3>Works with your tools</h3>
+            <p>Planned for Claude Code, Claude Desktop, Codex, and other clients that speak the MCP open standard — one connection, every AI coding tool.</p>
+          </div>
+          <div class="mcp-card">
+            <h3>Ask in plain words</h3>
+            <p>“Find me a fast Python web framework” or “a React chart library with 10,000+ stars.” Your assistant queries the catalog and returns the best matches, stars first.</p>
+          </div>
+          <div class="mcp-card">
+            <h3>API keys for direct access</h3>
+            <p>API keys will be provided for direct access to the catalog — query it from your own scripts and tools. Connection details and keys will be announced here when they go live.</p>
+          </div>
+        </div>
+        <p class="muted">MCP, intelligent discovery, and API access are not live yet. Nothing to sign up for today — this page will say when they are ready.</p>
+      </section>
+
+      <section id="contribute-section" class="section" aria-label="Contribute">
+        <div class="section-head">
+          <h2>Contribute — add a repo</h2>
+          <p>Help the catalog grow.</p>
+        </div>
+        <p class="section-lede">Found a repo that belongs here? Fill in the details below. The form builds a formatted suggestion you can copy and paste as an issue on the dev-marketplace repo. Every suggestion is reviewed before it joins the catalog.</p>
+        <form id="contrib-form" class="contrib-form" novalidate>
+          <div class="contrib-field">
+            <label for="contrib-name">Repo name <span class="required" aria-hidden="true">*</span></label>
+            <input id="contrib-name" name="repo" type="text" placeholder="e.g. fastapi" autocomplete="off" required aria-describedby="contrib-error">
+            <p class="field-hint">The repo name as it appears on its hosting page, without the owner.</p>
+          </div>
+          <div class="contrib-field">
+            <label for="contrib-category">Category <span class="required" aria-hidden="true">*</span></label>
+            <select id="contrib-category" name="category" required></select>
+          </div>
+          <div class="contrib-field">
+            <label for="contrib-why">Why is it useful?</label>
+            <textarea id="contrib-why" name="why" rows="3" placeholder="What does it do, and who is it for?"></textarea>
+          </div>
+          <div class="contrib-field">
+            <label for="contrib-tags">Tags <span class="optional">(optional)</span></label>
+            <input id="contrib-tags" name="tags" type="text" placeholder="e.g. python, api, async" autocomplete="off">
+            <p class="field-hint">Comma-separated, a few words that describe the repo.</p>
+          </div>
+          <p id="contrib-error" class="form-error" role="alert" hidden></p>
+          <button id="contrib-build" type="submit" class="cta-button">Build suggestion</button>
+        </form>
+        <div id="contrib-result" class="contrib-result" hidden>
+          <h3>Your suggestion</h3>
+          <pre id="contrib-output" class="contrib-output" tabindex="0"></pre>
+          <div class="contrib-actions">
+            <button id="contrib-copy" type="button" class="cta-button">Copy suggestion</button>
+            <span id="contrib-status" class="contrib-status" role="status" aria-live="polite"></span>
+          </div>
+          <p class="muted">This form does not send anything. Copy the text above and paste it as an issue on the dev-marketplace repo, and it will be reviewed for the catalog.</p>
+        </div>
+      </section>
+
+      <section id="browse-section" class="section browse-cta" aria-label="Browse categories">
+        <button id="browse-all-btn" type="button" class="cta-button cta-large">Browse all categories →</button>
+        <p id="browse-note" class="muted"></p>
+      </section>
+    </div>
+
+    <section id="categories-section" class="section" aria-label="All categories" hidden>
       <div class="section-head">
         <h2>Browse by category</h2>
         <p>Every listing opens sorted by stars, highest first.</p>
       </div>
-      <div id="category-grid" class="category-grid"><p class="muted">Loading categories…</p></div>
+      <div id="categories-grid" class="category-grid"><p class="muted">Loading categories…</p></div>
     </section>
 
     <section id="results-section" class="section" aria-label="Results" hidden>
       <div class="results-head">
         <h2 id="results-title">Results</h2>
-        <button id="back-home" type="button" class="link-button">← All categories</button>
+        <button id="back-home" type="button" class="link-button">← Home</button>
       </div>
       <p id="results-meta" class="muted"></p>
 
@@ -141,11 +248,11 @@
 
 <footer class="site-footer">
   <div class="wrap">
-    <p>This public catalog shows repo names without owners, descriptions, or links. Counts come from the catalog data files shipped with this site.</p>
+    <p><b>dev-marketplace</b> — a public catalog of developer resources. This public catalog shows repo names without owners, descriptions, or links. Counts come from the catalog data files shipped with this site. MCP, intelligent discovery, and API access are coming soon.</p>
   </div>
 </footer>
 
-<noscript><p style="padding:1rem">This catalog needs JavaScript to load its data files.</p></noscript>
+<noscript><p style="padding:1rem">dev-marketplace needs JavaScript to load its data files.</p></noscript>
 <script src="app.js" defer></script>
 </body>
 </html>
