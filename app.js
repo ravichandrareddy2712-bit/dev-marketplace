@@ -2,6 +2,8 @@
    relative data/ files shipped with this site. No outside requests.
    Rendered fields only: repo, category, subcategory, languages,
    frameworks, tags, stars, forks, license, last_updated, archived.
+   Skill records render: name, category, subcategory, tags, license,
+   last_updated, compatible_agents, installs, word_count, file_count.
    Community-contributed records may also carry contributed_by, a
    self-declared display name, rendered as a distinct Community badge. */
 (function () {
@@ -22,7 +24,9 @@
   var savedStates = {};     // route key -> {page, filters}
   var detailHints = null;   // {slug, name, stars, file, context}
   var detailReturnHash = "#/";
-  var currentView = "home"; // home | categories | category | search | detail
+  var currentView = "home"; // home | categories | category | search | detail | skills | skill-category | skill-search | skill-detail | soon
+  var soonType = null; // "prompts" | "agents" while on a coming-soon view
+  var searchType = "repo"; // "repo" | "skill": which catalog the search box queries
   var viewToken = 0;        // guards stale async loads after navigation
   var list = null;          // active category/search list state
 
@@ -50,7 +54,13 @@
    "nav-home", "nav-categories", "nav-contribute",
    "contribute-section", "contrib-form", "contrib-username", "contrib-name", "contrib-category", "contrib-why",
    "contrib-tags", "contrib-error", "contrib-result", "contrib-output",
-   "contrib-copy", "contrib-status"].forEach(function (id) {
+   "contrib-copy", "contrib-status",
+   "nav-skills", "nav-prompts", "nav-agents",
+   "type-tabs", "tab-count-repos", "tab-count-skills", "tab-count-prompts", "tab-count-agents",
+   "skills-section", "skills-grid", "skills-note",
+   "soon-section", "soon-title", "soon-body", "soon-back",
+   "filter-language-label", "filter-min-stars-label",
+   "search-label", "search-hint"].forEach(function (id) {
     els[id] = document.getElementById(id);
   });
 
@@ -86,16 +96,20 @@
     return (c >= "a" && c <= "z") ? c : "other";
   }
 
-  function loadShard(shard) {
-    if (shardCache[shard]) return Promise.resolve(shardCache[shard]);
-    return fetchJson("data/idx-" + shard + ".json").then(function (entries) {
-      shardCache[shard] = entries;
+  /* type: "repo" (idx-*.json) or "skill" (skills-idx-*.json). The shard
+     cache is keyed by type + shard so the two catalogs never mix. */
+  function loadShard(shard, type) {
+    var key = (type || "repo") + ":" + shard;
+    if (shardCache[key]) return Promise.resolve(shardCache[key]);
+    var file = type === "skill" ? "skills-idx-" + shard + ".json" : "idx-" + shard + ".json";
+    return fetchJson("data/" + file).then(function (entries) {
+      shardCache[key] = entries;
       return entries;
     });
   }
 
-  function loadAllShards() {
-    return Promise.all(SHARDS.map(loadShard)).then(function (lists) {
+  function loadAllShards(type) {
+    return Promise.all(SHARDS.map(function (s) { return loadShard(s, type); })).then(function (lists) {
       var all = [];
       lists.forEach(function (l) { all = all.concat(l); });
       return all;
@@ -113,15 +127,35 @@
     return c ? c.name : slug;
   }
 
-  function loadCategory(slug) {
-    if (categoryCache[slug]) return Promise.resolve(categoryCache[slug]);
-    var cat = categoryBySlug(slug);
+  function skillsCategoryBySlug(slug) {
+    var found = null;
+    if (manifest && manifest.skills) {
+      manifest.skills.categories.forEach(function (c) { if (c.slug === slug) found = c; });
+    }
+    return found;
+  }
+
+  function skillsCategoryName(slug) {
+    var c = skillsCategoryBySlug(slug);
+    return c ? c.name : slug;
+  }
+
+  /* Record accessors that work for both types: repo records carry repo /
+     stars; skill records carry name / installs (null until published). */
+  function recName(r) { return r.repo || r.name; }
+  function recScore(r) { return r.stars != null ? r.stars : (r.installs || 0); }
+  function recIsSkill(r) { return r && r.item_type === "skill"; }
+
+  function loadCategory(slug, type) {
+    var key = (type || "repo") + ":" + slug;
+    if (categoryCache[key]) return Promise.resolve(categoryCache[key]);
+    var cat = type === "skill" ? skillsCategoryBySlug(slug) : categoryBySlug(slug);
     if (!cat) return Promise.reject(new Error("Unknown category: " + slug));
     return Promise.all(cat.files.map(function (f) { return fetchJson("data/" + f); }))
       .then(function (parts) {
         var records = [];
         parts.forEach(function (p) { records = records.concat(p); });
-        categoryCache[slug] = records;
+        categoryCache[key] = records;
         return records;
       });
   }
@@ -149,8 +183,8 @@
   function findInRecords(records, name, stars) {
     var fallback = null;
     for (var i = 0; i < records.length; i++) {
-      if (records[i].repo === name) {
-        if (stars != null && records[i].stars === stars) return records[i];
+      if (recName(records[i]) === name) {
+        if (stars != null && recScore(records[i]) === stars) return records[i];
         if (!fallback) fallback = records[i];
       }
     }
@@ -160,26 +194,28 @@
   /* ---------- list state, filters, sorting ---------- */
 
   function defaultFilters() {
-    return { language: "", license: "", minStars: 0, updatedDays: 0,
+    return { language: "", agent: "", license: "", minStars: 0, updatedDays: 0,
              subcategory: "", category: "", hideArchived: false,
              popular: false, sort: "stars" };
   }
 
   function filtersActive(f) {
-    return !!(f.language || f.license || f.minStars > 0 || f.updatedDays > 0 ||
+    return !!(f.language || f.agent || f.license || f.minStars > 0 || f.updatedDays > 0 ||
               f.subcategory || f.category || f.hideArchived || f.popular);
   }
 
   function needsFullRecords(f) {
-    return !!(f.language || f.license || f.updatedDays > 0 || f.hideArchived ||
+    return !!(f.language || f.agent || f.license || f.updatedDays > 0 || f.hideArchived ||
               f.sort === "forks" || f.sort === "updated");
   }
 
-  function newListState(kind, key) {
-    var state = { kind: kind, key: key, items: [], view: [], page: 1,
+  function newListState(kind, key, type) {
+    var state = { kind: kind, key: key, type: type || "repo", items: [], view: [], page: 1,
                   baseCount: 0, filters: defaultFilters(),
                   resolved: kind === "category", resolvePromise: null,
                   contextRecords: null };
+    /* Skills have no installs data, so their lists start alphabetical. */
+    if (state.type === "skill") state.filters.sort = "name";
     var saved = savedStates[key];
     if (saved) {
       state.page = saved.page || 1;
@@ -189,6 +225,8 @@
       });
       state.filters = f;
     }
+    /* A saved "forks" sort cannot apply to skills (no forks field). */
+    if (state.type === "skill" && state.filters.sort === "forks") state.filters.sort = "name";
     return state;
   }
 
@@ -201,10 +239,10 @@
      r: full record or null}. Category items always carry the record; search
      items carry only the index entry until full records are resolved. */
   function itemFromRecord(r, slug) {
-    return { n: r.repo, s: r.stars || 0, c: slug, f: null, r: r };
+    return { n: recName(r), s: recScore(r), c: slug, f: null, r: r, t: r.item_type || "repo" };
   }
   function itemFromEntry(e) {
-    return { n: e.n, s: e.s || 0, c: e.c, f: e.f, r: null };
+    return { n: e.n, s: e.s || 0, c: e.c, f: e.f, r: null, t: e.t || "repo" };
   }
 
   function itemPasses(item, f, cutoff) {
@@ -215,6 +253,7 @@
     if (!r) return true;
     if (f.subcategory && (r.subcategory || "") !== f.subcategory) return false;
     if (f.language && (r.languages || []).indexOf(f.language) === -1) return false;
+    if (f.agent && (r.compatible_agents || []).indexOf(f.agent) === -1) return false;
     if (f.license && (r.license || "") !== f.license) return false;
     if (f.hideArchived && r.archived) return false;
     if (cutoff && (!r.last_updated || r.last_updated < cutoff)) return false;
@@ -287,6 +326,7 @@
     var f = list.filters;
     var sortLabel = { stars: "stars (highest first)", forks: "forks (highest first)",
                       updated: "recently updated", name: "name (A–Z)" }[f.sort] || "stars";
+    if (list.type === "skill" && f.sort === "stars") sortLabel = "installs (highest first)";
     var text = fmt(list.view.length) + " of " + fmt(list.baseCount) +
       " records, sorted by " + sortLabel + ".";
     if (filtersActive(f)) text += " Filters on.";
@@ -318,9 +358,9 @@
       names.forEach(function (fname, idx) {
         var byKey = {}, byName = {};
         chunks[idx].forEach(function (r) {
-          var key = r.repo + "|" + (r.stars || 0);
+          var key = recName(r) + "|" + recScore(r);
           if (!byKey[key]) byKey[key] = r;
-          if (!byName[r.repo]) byName[r.repo] = r;
+          if (!byName[recName(r)]) byName[recName(r)] = r;
         });
         maps[fname] = { byKey: byKey, byName: byName };
       });
@@ -391,41 +431,96 @@
 
   function populateFilterOptions() {
     var f = list.filters;
+    var skill = list.type === "skill";
     var withRecords = list.items.filter(function (it) { return !!it.r; });
-    var langPairs = distinctValues(withRecords, function (it) { return it.r.languages; })
-      .map(function (v) { return { value: v, label: v }; });
+    /* For skills the "language" select lists compatible agents instead. */
+    var langPairs = skill
+      ? distinctValues(withRecords, function (it) { return it.r.compatible_agents; })
+        .map(function (v) { return { value: v, label: v }; })
+      : distinctValues(withRecords, function (it) { return it.r.languages; })
+        .map(function (v) { return { value: v, label: v }; });
     var licPairs = distinctValues(withRecords, function (it) { return it.r.license; })
       .map(function (v) { return { value: v, label: v }; });
-    fillSelect(els["filter-language"], langPairs, "All languages", f.language);
+    fillSelect(els["filter-language"], langPairs, skill ? "All agents" : "All languages",
+      skill ? f.agent : f.language);
     fillSelect(els["filter-license"], licPairs, "All licenses", f.license);
+    els["filter-language-label"].textContent = skill ? "Compatible agent" : "Language";
+    els["filter-min-stars-label"].textContent = skill ? "Min installs" : "Min stars";
+
+    /* Min-stars thresholds mean installs for skills; relabel the options
+       (rebuilt for both types, so switching catalogs never leaves the
+       other type's wording behind). */
+    var minSel = els["filter-min-stars"];
+    var minOpts = skill
+      ? [["0", "Any installs"], ["100", "100+ installs"], ["500", "500+ installs"],
+         ["1000", "1,000+ installs"], ["5000", "5,000+ installs"],
+         ["10000", "10,000+ installs"], ["50000", "50,000+ installs"]]
+      : [["0", "Any stars"], ["100", "100+ stars"], ["500", "500+ stars"],
+         ["1000", "1,000+ stars"], ["5000", "5,000+ stars"],
+         ["10000", "10,000+ stars"], ["50000", "50,000+ stars"]];
+    minSel.innerHTML = "";
+    minOpts.forEach(function (o) {
+      var mopt = document.createElement("option");
+      mopt.value = o[0];
+      mopt.textContent = o[1];
+      minSel.appendChild(mopt);
+    });
+
+    /* Sort options: skills have no forks; "stars" means installs there. */
+    var sortSel = els["filter-sort"];
+    var sortOpts = skill
+      ? [["stars", "Installs: high to low (no installs data yet)"],
+         ["updated", "Recently updated"], ["name", "Name: A–Z"]]
+      : [["stars", "Stars: high to low"], ["forks", "Forks: high to low"],
+         ["updated", "Recently updated"], ["name", "Name: A–Z"]];
+    sortSel.innerHTML = "";
+    sortOpts.forEach(function (o) {
+      var opt = document.createElement("option");
+      opt.value = o[0];
+      opt.textContent = o[1];
+      sortSel.appendChild(opt);
+    });
 
     if (list.kind === "category") {
-      els["filter-subcategory-wrap"].hidden = false;
+      /* Skills have no subcategories, and a skills category page is one
+         category already, so both wraps stay hidden for skills. */
+      els["filter-subcategory-wrap"].hidden = skill;
       els["filter-category-wrap"].hidden = true;
-      var subPairs = distinctValues(withRecords, function (it) { return it.r.subcategory; })
-        .map(function (v) { return { value: v, label: v }; });
-      fillSelect(els["filter-subcategory"], subPairs, "All subcategories", f.subcategory);
+      if (!skill) {
+        var subPairs = distinctValues(withRecords, function (it) { return it.r.subcategory; })
+          .map(function (v) { return { value: v, label: v }; });
+        fillSelect(els["filter-subcategory"], subPairs, "All subcategories", f.subcategory);
+      }
     } else {
       els["filter-subcategory-wrap"].hidden = true;
       els["filter-category-wrap"].hidden = false;
       var catSeen = {}, catPairs = [];
+      var catLabel = skill ? skillsCategoryName : categoryName;
       list.items.forEach(function (it) {
-        if (!catSeen[it.c]) { catSeen[it.c] = true; catPairs.push({ value: it.c, label: categoryName(it.c) }); }
+        if (!catSeen[it.c]) { catSeen[it.c] = true; catPairs.push({ value: it.c, label: catLabel(it.c) }); }
       });
       catPairs.sort(function (a, b) { return a.label < b.label ? -1 : a.label > b.label ? 1 : 0; });
       fillSelect(els["filter-category"], catPairs, "All categories", f.category);
     }
 
-    var popularCount = 0;
-    list.items.forEach(function (it) { if (it.s >= POPULAR_MIN) popularCount++; });
-    els["filter-popular"].textContent = "★ Popular (1,000+) · " + fmt(popularCount);
-    els["filter-popular"].setAttribute("aria-pressed", f.popular ? "true" : "false");
+    /* Popular (1,000+ installs) and Hide archived have no meaning for
+       skills: no installs data is published and skills are never archived. */
+    els["filter-popular"].hidden = skill;
+    els["filter-hide-archived"].closest("label").hidden = skill;
+    if (!skill) {
+      var popularCount = 0;
+      list.items.forEach(function (it) { if (it.s >= POPULAR_MIN) popularCount++; });
+      els["filter-popular"].textContent = "★ Popular (1,000+) · " + fmt(popularCount);
+      els["filter-popular"].setAttribute("aria-pressed", f.popular ? "true" : "false");
+    }
 
     var showLoadFull = list.kind === "search" && !list.resolved;
     els["filter-load-full"].hidden = !showLoadFull;
     els["filter-note"].hidden = !showLoadFull;
     if (showLoadFull) {
-      els["filter-note"].textContent = "Language, license, updated and archived filters need full record details.";
+      els["filter-note"].textContent = skill
+        ? "Compatible agent, license and updated filters need full record details."
+        : "Language, license, updated and archived filters need full record details.";
     }
     els["filter-language"].disabled = showLoadFull;
     els["filter-license"].disabled = showLoadFull;
@@ -436,7 +531,7 @@
 
   function syncFilterControlValues() {
     var f = list.filters;
-    els["filter-language"].value = f.language;
+    els["filter-language"].value = list.type === "skill" ? f.agent : f.language;
     els["filter-license"].value = f.license;
     els["filter-min-stars"].value = String(f.minStars);
     els["filter-updated"].value = String(f.updatedDays);
@@ -454,7 +549,8 @@
 
   function readFilterControls() {
     var f = list.filters;
-    f.language = els["filter-language"].value;
+    if (list.type === "skill") { f.agent = els["filter-language"].value; f.language = ""; }
+    else { f.language = els["filter-language"].value; f.agent = ""; }
     f.license = els["filter-license"].value;
     f.minStars = parseInt(els["filter-min-stars"].value, 10) || 0;
     f.updatedDays = parseInt(els["filter-updated"].value, 10) || 0;
@@ -488,6 +584,17 @@
   }
 
   function metaLine(r) {
+    if (recIsSkill(r)) {
+      var sbits = [];
+      if (r.category) sbits.push(esc(r.category));
+      if (r.compatible_agents && r.compatible_agents.length) {
+        sbits.push("Works with: " + esc(r.compatible_agents.join(", ")));
+      }
+      if (r.word_count != null) sbits.push(fmt(r.word_count) + " words");
+      if (r.license) sbits.push("License: " + esc(r.license));
+      if (r.last_updated) sbits.push("Updated: " + esc(r.last_updated));
+      return sbits.join(" · ");
+    }
     var bits = [];
     if (r.category) bits.push(esc(r.category));
     var who = contributorOf(r);
@@ -503,9 +610,15 @@
     var r = item.r;
     var archived = r && r.archived ? '<span class="archived-badge">Archived</span>' : "";
     var community = r ? communityBadgeHtml(r) : "";
-    var meta = r ? metaLine(r) : esc(categoryName(item.c));
+    var meta = r ? metaLine(r)
+      : esc(item.t === "skill" ? skillsCategoryName(item.c) : categoryName(item.c));
+    /* Skills have no installs data yet: show no score chip at all instead
+       of a misleading zero. */
+    var score = item.t === "skill"
+      ? (item.s > 0 ? '<span class="row-stars">' + fmt(item.s) + " installs</span>" : "")
+      : '<span class="row-stars">★ ' + fmt(item.s) + "</span>";
     return '<div class="row-top"><span class="row-name">' + esc(item.n) + archived + community +
-      '</span><span class="row-stars">★ ' + fmt(item.s) + "</span></div>" +
+      "</span>" + score + "</div>" +
       '<div class="row-meta">' + meta + "</div>";
   }
 
@@ -526,7 +639,8 @@
       btn.innerHTML = rowHtml(item);
       btn.addEventListener("click", function () {
         goDetail(item.c, item.n, item.s, item.f,
-          item.r && list && list.kind === "category" ? list.contextRecords : null);
+          item.r && list && list.kind === "category" ? list.contextRecords : null,
+          item.t);
       });
       container.appendChild(btn);
     });
@@ -567,33 +681,68 @@
   function updateNav() {
     var home = currentView === "home";
     var cats = currentView === "categories" || currentView === "category";
+    var skills = currentView === "skills" || currentView === "skill-category" ||
+                 currentView === "skill-search" || currentView === "skill-detail";
+    var prompts = currentView === "soon" && soonType === "prompts";
+    var agents = currentView === "soon" && soonType === "agents";
     els["nav-home"].classList.toggle("nav-active", home);
     els["nav-categories"].classList.toggle("nav-active", cats);
+    els["nav-skills"].classList.toggle("nav-active", skills);
+    els["nav-prompts"].classList.toggle("nav-active", prompts);
+    els["nav-agents"].classList.toggle("nav-active", agents);
     if (home) { els["nav-home"].setAttribute("aria-current", "page"); }
     else { els["nav-home"].removeAttribute("aria-current"); }
     if (cats) { els["nav-categories"].setAttribute("aria-current", "page"); }
     else { els["nav-categories"].removeAttribute("aria-current"); }
+    if (skills) { els["nav-skills"].setAttribute("aria-current", "page"); }
+    else { els["nav-skills"].removeAttribute("aria-current"); }
+    if (prompts) { els["nav-prompts"].setAttribute("aria-current", "page"); }
+    else { els["nav-prompts"].removeAttribute("aria-current"); }
+    if (agents) { els["nav-agents"].setAttribute("aria-current", "page"); }
+    else { els["nav-agents"].removeAttribute("aria-current"); }
+    var tab = skills ? "tab-skills" : prompts ? "tab-prompts" : agents ? "tab-agents" : "tab-repos";
+    ["tab-repos", "tab-skills", "tab-prompts", "tab-agents"].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.classList.toggle("type-active", id === tab);
+    });
+  }
+
+  /* The search box queries one catalog at a time; its label follows. */
+  function setSearchType(t) {
+    searchType = t;
+    var skill = t === "skill";
+    els["search-label"].textContent = skill ? "Search skill names" : "Search repo names";
+    els["search-input"].placeholder = skill ? "Search skill names…" : "Search repo names…";
+    els["search-hint"].textContent = skill
+      ? "Type to see suggestions, alphabetical. Search matches any part of a skill name. Use ↑ ↓ to move through suggestions, Enter to open one."
+      : "Type to see suggestions, best-starred first. Search matches any part of a repo name. Use ↑ ↓ to move through suggestions, Enter to open one.";
   }
 
   function showHome() {
     currentView = "home";
     list = null;
+    setSearchType("repo");
     els.hero.hidden = false;
     els["home-sections"].hidden = false;
     els["categories-section"].hidden = true;
     els["results-section"].hidden = true;
     els["detail-section"].hidden = true;
+    els["skills-section"].hidden = true;
+    els["soon-section"].hidden = true;
     updateNav();
   }
 
   function showCategories() {
     currentView = "categories";
     list = null;
+    setSearchType("repo");
     els.hero.hidden = true;
     els["home-sections"].hidden = true;
     els["categories-section"].hidden = false;
     els["results-section"].hidden = true;
     els["detail-section"].hidden = true;
+    els["skills-section"].hidden = true;
+    els["soon-section"].hidden = true;
     updateNav();
     window.scrollTo(0, 0);
   }
@@ -603,6 +752,8 @@
     els["home-sections"].hidden = true;
     els["categories-section"].hidden = true;
     els["detail-section"].hidden = true;
+    els["skills-section"].hidden = true;
+    els["soon-section"].hidden = true;
     els["results-section"].hidden = false;
     els["results-title"].textContent = title;
     els["results-meta"].textContent = meta;
@@ -611,12 +762,88 @@
     updateNav();
   }
 
+  function showSkills() {
+    currentView = "skills";
+    list = null;
+    setSearchType("skill");
+    els.hero.hidden = true;
+    els["home-sections"].hidden = true;
+    els["categories-section"].hidden = true;
+    els["results-section"].hidden = true;
+    els["detail-section"].hidden = true;
+    els["soon-section"].hidden = true;
+    els["skills-section"].hidden = false;
+    updateNav();
+    window.scrollTo(0, 0);
+  }
+
+  /* Honest placeholders: prompts wait on the D3 prompt-text decision,
+     agents wait on the licence checks. Counts are 0, never promised. */
+  var SOON_COPY = {
+    prompts: {
+      title: "Prompts — coming soon",
+      body: "Prompts are not published yet. The collection has been measured (about 1.37 million verified image prompts, mostly CC0), but the prompt-text decision is still open: whether the prompt text itself is shown on the site. Nothing is published until that call is made. 0 prompts shipped in this build."
+    },
+    agents: {
+      title: "Agents — coming soon",
+      body: "Agents are not published yet. The registry sample showed only 22% of servers have a resolvable licence, so the licence checks (including the npm/pypi metadata sample) come first. 0 agents shipped in this build."
+    }
+  };
+
+  function showSoon(type) {
+    currentView = "soon";
+    soonType = type;
+    list = null;
+    setSearchType("repo");
+    var copy = SOON_COPY[type] || SOON_COPY.prompts;
+    els["soon-title"].textContent = copy.title;
+    els["soon-body"].textContent = copy.body;
+    els.hero.hidden = true;
+    els["home-sections"].hidden = true;
+    els["categories-section"].hidden = true;
+    els["results-section"].hidden = true;
+    els["detail-section"].hidden = true;
+    els["skills-section"].hidden = true;
+    els["soon-section"].hidden = false;
+    updateNav();
+    window.scrollTo(0, 0);
+  }
+
+  function openSkillCategory(slug) {
+    hideError();
+    var cat = skillsCategoryBySlug(slug);
+    if (!cat) { showError("Skill category not found: " + slug); return; }
+    currentView = "skill-category";
+    setSearchType("skill");
+    list = newListState("category", "skillcat:" + slug, "skill");
+    list.slug = slug;
+    var token = viewToken;
+    showResults(cat.name, "Loading…");
+    els["filter-bar"].hidden = true;
+    els.results.innerHTML = '<p class="muted">Loading skills…</p>';
+    els.pager.innerHTML = "";
+    loadCategory(slug, "skill").then(function (records) {
+      if (token !== viewToken) return;
+      list.items = records.map(function (r) { return itemFromRecord(r, slug); });
+      list.baseCount = records.length;
+      list.contextRecords = records;
+      populateFilterOptions();
+      els["filter-bar"].hidden = false;
+      renderList();
+    }).catch(function (err) {
+      if (token !== viewToken) return;
+      showError("Could not load this skill category. Check the connection and try again. (" + err.message + ")");
+      els.results.innerHTML = "";
+      els["results-meta"].textContent = "";
+    });
+  }
+
   function openCategory(slug) {
     hideError();
     var cat = categoryBySlug(slug);
     if (!cat) { showError("Category not found: " + slug); return; }
     currentView = "category";
-    list = newListState("category", "cat:" + slug);
+    list = newListState("category", "cat:" + slug, "repo");
     list.slug = slug;
     var token = viewToken;
     showResults(cat.name, "Loading…");
@@ -735,17 +962,18 @@
 
   /* Honest note for question-like queries: no LLM or Laya runs in this
      site yet, and the note says so. */
-  function showQuestionHint(terms, mode) {
+  function showQuestionHint(terms, mode, type) {
     var note = els["search-note"];
+    var kind = type === "skill" ? "skill" : "repo";
     var text = "Question understanding with LLM + Laya is coming soon — it is not running in this search yet. " +
-      "Right now search matches repo names only, so these are the closest name matches";
+      "Right now search matches " + kind + " names only, so these are the closest name matches";
     if (terms && terms.length) {
       text += " for the key words in your question: " +
         terms.map(function (t) { return "“" + t + "”"; }).join(", ");
     }
     text += ".";
     if (mode === "any") {
-      text += " No repo name contains all of those words, so these match at least one of them.";
+      text += " No " + kind + " name contains all of those words, so these match at least one of them.";
     }
     note.textContent = text;
     note.hidden = false;
@@ -758,41 +986,51 @@
     var q = list.query || "";
     var terms = list.searchTerms;
     var mode = list.matchMode;
+    var kind = list.type === "skill" ? "skill" : "repo";
     var why;
     if (terms && terms.length) {
       var quoted = terms.map(function (t) { return "“" + t + "”"; });
       why = mode === "any"
-        ? "No repo name contains any of " + quoted.join(", ") + "."
-        : "No repo name contains all of " + quoted.join(", ") + ".";
+        ? "No " + kind + " name contains any of " + quoted.join(", ") + "."
+        : "No " + kind + " name contains all of " + quoted.join(", ") + ".";
     } else {
-      why = "No repo name contains “" + q + "”.";
+      why = "No " + kind + " name contains “" + q + "”.";
     }
     var box = document.createElement("div");
     box.className = "empty-search";
     var head = document.createElement("p");
     head.innerHTML = "<b>" + esc(why) + "</b>";
     var body = document.createElement("p");
-    body.textContent = "Search matches repo names only. Try fewer words, a repo name such as “fastapi”, or browse the categories instead.";
+    body.textContent = list.type === "skill"
+      ? "Search matches skill names only. Try fewer words, a skill name such as “frontend-design”, or browse the skills categories instead."
+      : "Search matches repo names only. Try fewer words, a repo name such as “fastapi”, or browse the categories instead.";
     var btn = document.createElement("button");
     btn.type = "button";
     btn.className = "cta-button";
-    btn.textContent = "Browse all categories →";
-    btn.addEventListener("click", function () { navigate("#/categories"); });
+    if (list.type === "skill") {
+      btn.textContent = "Browse all skills categories →";
+      btn.addEventListener("click", function () { navigate("#/skills"); });
+    } else {
+      btn.textContent = "Browse all categories →";
+      btn.addEventListener("click", function () { navigate("#/categories"); });
+    }
     box.appendChild(head);
     box.appendChild(body);
     box.appendChild(btn);
     container.appendChild(box);
   }
 
-  function openSearch(query) {
+  function openSearch(query, type) {
     hideError();
     var q = (query || "").trim();
     if (!q) {
       showError("Type something to search.");
       return;
     }
-    currentView = "search";
-    list = newListState("search", "search:" + q);
+    type = type || "repo";
+    currentView = type === "skill" ? "skill-search" : "search";
+    setSearchType(type);
+    list = newListState("search", "search:" + type + ":" + q, type);
     list.query = q;
     var questionLike = isQuestionLike(q, searchWords(q));
     var token = viewToken;
@@ -800,7 +1038,7 @@
     els["filter-bar"].hidden = true;
     els.results.innerHTML = searchLoadingHtml("Loading the name index…");
     els.pager.innerHTML = "";
-    loadAllShards().then(function (entries) {
+    loadAllShards(type).then(function (entries) {
       if (token !== viewToken) return null;
       /* Yield so the staged status paints before the synchronous match. */
       setSearchStatus("Matching names…");
@@ -814,7 +1052,7 @@
       list.baseCount = found.matches.length;
       list.searchTerms = found.terms;
       list.matchMode = found.mode;
-      if (questionLike) showQuestionHint(found.terms, found.mode);
+      if (questionLike) showQuestionHint(found.terms, found.mode, type);
       populateFilterOptions();
       els["filter-bar"].hidden = false;
       renderList();
@@ -836,20 +1074,27 @@
     }
   }
 
-  function goDetail(slug, name, stars, file, context) {
-    if (currentView !== "detail") detailReturnHash = location.hash || "#/";
-    detailHints = { slug: slug, name: name, stars: stars, file: file, context: context };
-    navigate("#/detail/" + slug + "/" + encodeURIComponent(name));
+  function goDetail(slug, name, stars, file, context, type) {
+    if (currentView !== "detail" && currentView !== "skill-detail") {
+      detailReturnHash = location.hash || "#/";
+    }
+    detailHints = { slug: slug, name: name, stars: stars, file: file,
+                    context: context, type: type || "repo" };
+    var base = (type === "skill") ? "#/skill-detail/" : "#/detail/";
+    navigate(base + slug + "/" + encodeURIComponent(name));
   }
 
-  function showDetailLoading(name) {
-    currentView = "detail";
+  function showDetailLoading(name, type) {
+    currentView = type === "skill" ? "skill-detail" : "detail";
     list = null;
+    setSearchType(type === "skill" ? "skill" : "repo");
     updateNav();
     els.hero.hidden = true;
     els["home-sections"].hidden = true;
     els["categories-section"].hidden = true;
     els["results-section"].hidden = true;
+    els["skills-section"].hidden = true;
+    els["soon-section"].hidden = true;
     els["detail-section"].hidden = false;
     els["detail-title"].textContent = name || "Record details";
     els.detail.innerHTML = '<p class="muted">Loading record…</p>';
@@ -858,25 +1103,26 @@
     window.scrollTo(0, 0);
   }
 
-  function openDetailByRoute(slug, name) {
+  function openDetailByRoute(slug, name, type) {
     hideError();
+    type = type || "repo";
     var hints = detailHints;
     detailHints = null;
     if (hints && hints.slug === slug && hints.name === name && hints.context) {
       var rec = findInRecords(hints.context, name, hints.stars);
-      if (rec) { renderDetail(rec, hints.context, slug); return; }
+      if (rec) { renderDetail(rec, hints.context, slug, type); return; }
     }
-    showDetailLoading(name);
+    showDetailLoading(name, type);
     var token = viewToken;
     function fromCategory() {
-      loadCategory(slug).then(function (records) {
+      loadCategory(slug, type).then(function (records) {
         if (token !== viewToken) return;
         var found = findInRecords(records, name, hints ? hints.stars : null);
         if (!found) {
           els.detail.innerHTML = '<p class="muted">Record not found in its data file.</p>';
           return;
         }
-        renderDetail(found, records, slug);
+        renderDetail(found, records, slug, type);
       }).catch(function (err) {
         if (token !== viewToken) return;
         showError("Could not load that record. (" + err.message + ")");
@@ -887,7 +1133,7 @@
       loadChunk(hints.file).then(function (records) {
         if (token !== viewToken) return;
         var found = findInRecords(records, name, hints.stars);
-        if (found) { renderDetail(found, records, slug); return; }
+        if (found) { renderDetail(found, records, slug, type); return; }
         fromCategory();
       }).catch(function () {
         if (token !== viewToken) return;
@@ -899,6 +1145,24 @@
   }
 
   function detailHtml(r) {
+    if (recIsSkill(r)) {
+      var srows = [];
+      srows.push("<dt>Category</dt><dd>" + esc(r.category || "—") + "</dd>");
+      srows.push("<dt>Subcategory</dt><dd>" + esc(r.subcategory || "—") + "</dd>");
+      srows.push("<dt>Compatible agents</dt><dd>" + esc((r.compatible_agents || []).join(", ") || "—") + "</dd>");
+      srows.push("<dt>Installs</dt><dd>" + (r.installs != null ? fmt(r.installs) : "Not published") + "</dd>");
+      srows.push("<dt>Word count</dt><dd>" + (r.word_count != null ? fmt(r.word_count) : "—") + "</dd>");
+      srows.push("<dt>Files</dt><dd>" + (r.file_count != null ? fmt(r.file_count) : "—") + "</dd>");
+      srows.push("<dt>License</dt><dd>" + esc(r.license || "—") + "</dd>");
+      srows.push("<dt>Last updated</dt><dd>" + esc(r.last_updated || "—") + "</dd>");
+      var stags = (r.tags || []).map(function (t) {
+        return '<span class="tag-chip">' + esc(t) + "</span>";
+      }).join("");
+      srows.push("<dt>Tags</dt><dd>" + (stags || "—") + "</dd>");
+      return '<p class="detail-name">' + esc(r.name) + "</p>" +
+        '<p class="detail-stats">' + esc(r.category || "") + "</p>" +
+        "<dl>" + srows.join("") + "</dl>";
+    }
     var rows = [];
     rows.push("<dt>Category</dt><dd>" + esc(r.category || "—") + "</dd>");
     var who = contributorOf(r);
@@ -920,49 +1184,65 @@
       "<dl>" + rows.join("") + "</dl>";
   }
 
-  function renderDetail(r, context, slug) {
-    currentView = "detail";
+  function renderDetail(r, context, slug, type) {
+    var skill = type === "skill" || recIsSkill(r);
+    currentView = skill ? "skill-detail" : "detail";
     list = null;
     updateNav();
     els.hero.hidden = true;
     els["home-sections"].hidden = true;
     els["categories-section"].hidden = true;
     els["results-section"].hidden = true;
+    els["skills-section"].hidden = true;
+    els["soon-section"].hidden = true;
     els["detail-section"].hidden = false;
-    els["detail-title"].textContent = r.repo;
+    els["detail-title"].textContent = recName(r);
     els.detail.innerHTML = detailHtml(r);
     var catBtn = document.createElement("button");
     catBtn.type = "button";
     catBtn.className = "link-button";
-    catBtn.textContent = "See all in " + (r.category || categoryName(slug)) + " →";
+    catBtn.textContent = "See all in " + (r.category || (skill ? skillsCategoryName(slug) : categoryName(slug))) + " →";
     catBtn.addEventListener("click", function () {
-      navigate("#/category/" + slug);
+      navigate((skill ? "#/skill-category/" : "#/category/") + slug);
     });
     var wrap = document.createElement("p");
     wrap.appendChild(catBtn);
     els.detail.appendChild(wrap);
 
-    var related = (context || []).filter(function (o) {
-      return o.subcategory && o.subcategory === r.subcategory &&
-        !(o.repo === r.repo && o.stars === r.stars);
-    }).sort(function (a, b) { return (b.stars - a.stars); }).slice(0, RELATED_LIMIT);
+    /* Skills have no subcategories: related = same category, alphabetical.
+       Repos keep the existing subcategory + stars behaviour. */
+    var related;
+    if (skill) {
+      related = (context || []).filter(function (o) { return o !== r; })
+        .sort(function (a, b) { return nameCmp(itemFromRecord(a, slug), itemFromRecord(b, slug)); })
+        .slice(0, RELATED_LIMIT);
+    } else {
+      related = (context || []).filter(function (o) {
+        return o.subcategory && o.subcategory === r.subcategory &&
+          !(o.repo === r.repo && o.stars === r.stars);
+      }).sort(function (a, b) { return (b.stars - a.stars); }).slice(0, RELATED_LIMIT);
+    }
     els.related.innerHTML = "";
     if (related.length) {
       els["related-heading"].hidden = false;
-      els["related-heading"].textContent = "Related repos — " + r.subcategory;
+      els["related-heading"].textContent = skill
+        ? "Related skills — " + (r.category || skillsCategoryName(slug))
+        : "Related repos — " + r.subcategory;
       related.forEach(function (o) {
         var btn = document.createElement("button");
         btn.type = "button";
         btn.className = "row";
         btn.innerHTML = rowHtml(itemFromRecord(o, slug));
         btn.addEventListener("click", function () {
-          goDetail(slug, o.repo, o.stars, null, context);
+          goDetail(slug, recName(o), recScore(o), null, context, skill ? "skill" : "repo");
         });
         els.related.appendChild(btn);
       });
     } else {
       els["related-heading"].hidden = true;
-      els.related.innerHTML = '<p class="muted">No other repos in this subcategory.</p>';
+      els.related.innerHTML = skill
+        ? '<p class="muted">No other skills in this category.</p>'
+        : '<p class="muted">No other repos in this subcategory.</p>';
     }
     window.scrollTo(0, 0);
   }
@@ -1045,6 +1325,36 @@
       els["categories-grid"].appendChild(b);
     });
 
+    /* Type tabs: live counts from the manifest, never hardcoded. */
+    els["tab-count-repos"].textContent = fmt(manifest.total);
+    els["tab-count-skills"].textContent = manifest.skills ? fmt(manifest.skills.total) : "—";
+    els["tab-count-prompts"].textContent = manifest.types && manifest.types.prompts
+      ? fmt(manifest.types.prompts.total) + " · coming soon" : "0 · coming soon";
+    els["tab-count-agents"].textContent = manifest.types && manifest.types.agents
+      ? fmt(manifest.types.agents.total) + " · coming soon" : "0 · coming soon";
+
+    /* Skills category grid for the #/skills view (rendered once at boot,
+       like the repo grid above). */
+    var scats = manifest.skills
+      ? manifest.skills.categories.slice().sort(function (a, b) { return b.count - a.count; })
+      : [];
+    els["skills-grid"].innerHTML = "";
+    scats.forEach(function (c) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "category-card";
+      b.innerHTML = '<span class="cat-name">' + esc(c.name) + "</span>" +
+        '<span class="cat-count">' + fmt(c.count) + " skills</span>";
+      b.addEventListener("click", function () {
+        navigate("#/skill-category/" + c.slug);
+      });
+      els["skills-grid"].appendChild(b);
+    });
+    els["skills-note"].textContent = scats.length
+      ? fmt(scats.length) + " skill categories, " + fmt(manifest.skills.total) +
+        " skills. Listings are alphabetical — no installs data is published yet, so nothing here is ranked by popularity."
+      : "No skills in this build.";
+
     /* Browse-all button + note, with the live category count. */
     els["browse-all-btn"].textContent = "Browse all " + fmt(manifest.categories.length) + " categories →";
     els["browse-note"].textContent = "All " + fmt(manifest.categories.length) +
@@ -1101,7 +1411,7 @@
     var name = e.n;
     hideSuggest();
     els["search-input"].value = name;
-    goDetail(e.c, e.n, e.s, e.f, null);
+    goDetail(e.c, e.n, e.s, e.f, null, searchType);
   }
 
   function runSuggest() {
@@ -1109,7 +1419,7 @@
     if (!q) { hideSuggest(); return; }
     var token = ++suggestToken;
     var needle = q.toLowerCase();
-    loadShard(shardFor(q)).then(function (entries) {
+    loadShard(shardFor(q), searchType).then(function (entries) {
       if (token !== suggestToken) return;
       if (els["search-input"].value.trim() !== q) return;
       var matches = entries.filter(function (e) {
@@ -1127,8 +1437,11 @@
         b.id = "suggest-opt-" + i;
         b.setAttribute("role", "option");
         b.setAttribute("tabindex", "-1");
+        var sLabel = searchType === "skill"
+          ? esc(skillsCategoryName(e.c)) + (e.s > 0 ? " · " + fmt(e.s) + " installs" : "")
+          : esc(categoryName(e.c)) + " · ★ " + fmt(e.s);
         b.innerHTML = "<span>" + esc(e.n) + "</span>" +
-          '<span class="suggest-cat">' + esc(categoryName(e.c)) + " · ★ " + fmt(e.s) + "</span>";
+          '<span class="suggest-cat">' + sLabel + "</span>";
         /* mousedown + preventDefault keeps focus in the input, so the
            blur handler cannot hide the list under the user's tap. The
            click handler is a fallback; the guard prevents a double open. */
@@ -1168,6 +1481,12 @@
     var contributeMatch = hash.match(/^#\/contribute\/?$/);
     var searchMatch = hash.match(/^#\/search\/(.+)$/);
     var detailMatch = hash.match(/^#\/detail\/([a-z0-9-]+)\/(.+)$/);
+    var skillsMatch = hash.match(/^#\/skills\/?$/);
+    var skillCatMatch = hash.match(/^#\/skill-category\/([a-z0-9-]+)\/?$/);
+    var skillSearchMatch = hash.match(/^#\/skills\/search\/(.+)$/);
+    var skillDetailMatch = hash.match(/^#\/skill-detail\/([a-z0-9-]+)\/(.+)$/);
+    var promptsMatch = hash.match(/^#\/prompts\/?$/);
+    var agentsMatch = hash.match(/^#\/agents\/?$/);
     if (catMatch) {
       openCategory(catMatch[1]);
     } else if (categoriesMatch) {
@@ -1179,11 +1498,28 @@
       var q = "";
       try { q = decodeURIComponent(searchMatch[1]); } catch (e) { q = searchMatch[1]; }
       els["search-input"].value = q;
-      openSearch(q);
+      openSearch(q, "repo");
     } else if (detailMatch) {
       var name = "";
       try { name = decodeURIComponent(detailMatch[2]); } catch (e) { name = detailMatch[2]; }
-      openDetailByRoute(detailMatch[1], name);
+      openDetailByRoute(detailMatch[1], name, "repo");
+    } else if (skillsMatch) {
+      showSkills();
+    } else if (skillCatMatch) {
+      openSkillCategory(skillCatMatch[1]);
+    } else if (skillSearchMatch) {
+      var sq = "";
+      try { sq = decodeURIComponent(skillSearchMatch[1]); } catch (e) { sq = skillSearchMatch[1]; }
+      els["search-input"].value = sq;
+      openSearch(sq, "skill");
+    } else if (skillDetailMatch) {
+      var sname = "";
+      try { sname = decodeURIComponent(skillDetailMatch[2]); } catch (e) { sname = skillDetailMatch[2]; }
+      openDetailByRoute(skillDetailMatch[1], sname, "skill");
+    } else if (promptsMatch) {
+      showSoon("prompts");
+    } else if (agentsMatch) {
+      showSoon("agents");
     } else {
       showHome();
     }
@@ -1196,7 +1532,7 @@
     hideSuggest();
     var q = els["search-input"].value.trim();
     if (!q) { showError("Type something to search."); return; }
-    navigate("#/search/" + encodeURIComponent(q));
+    navigate((searchType === "skill" ? "#/skills/search/" : "#/search/") + encodeURIComponent(q));
   });
   els["search-input"].addEventListener("input", function () {
     if (debounceTimer) clearTimeout(debounceTimer);
@@ -1241,6 +1577,7 @@
   els["filter-clear"].addEventListener("click", function () {
     if (!list) return;
     list.filters = defaultFilters();
+    if (list.type === "skill") list.filters.sort = "name";
     list.page = 1;
     saveListState();
     syncFilterControlValues();
@@ -1259,6 +1596,9 @@
   });
   els["browse-all-btn"].addEventListener("click", function () {
     navigate("#/categories");
+  });
+  els["soon-back"].addEventListener("click", function () {
+    navigate("#/");
   });
   els["nav-contribute"].addEventListener("click", function () {
     navigate("#/contribute");
@@ -1345,6 +1685,7 @@
     els["hero-popular"].textContent = "—";
     els.picks.innerHTML = "";
     els["categories-grid"].innerHTML = "";
+    els["skills-grid"].innerHTML = "";
     els["cat-glance"].innerHTML = "";
     showError("Could not load the catalog data files. Serve this folder with a local static file server and reload. (" + err.message + ")");
   });

@@ -547,3 +547,11 @@ h3 { font-size: 1.05rem; margin: 1.5rem 0 0.6rem; }
   html { scroll-behavior: auto; }
   *, *::before, *::after { transition: none !important; animation: none !important; }
 }
+
+
+/* ---- Skills / prompts / agents (Phase 2, 2026-11-21) ---- */
+.type-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0 0; }
+.type-tab { display: inline-block; padding: 8px 14px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); color: var(--text); text-decoration: none; font-size: 14px; }
+.type-tab:hover { border-color: var(--accent); }
+.type-tab b { font-weight: 700; }
+.type-tab.type-active { border-color: var(--accent); color: var(--accent-strong); background: var(--accent-soft); }

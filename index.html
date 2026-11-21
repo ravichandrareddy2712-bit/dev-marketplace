@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>dev-marketplace — Find the repo that fits your build</title>
-<meta name="description" content="dev-marketplace: a public catalog of developer resources. Search repo names, filter by language, license, and stars. No owners, no descriptions, no links.">
+<meta name="description" content="dev-marketplace: a public catalog of developer resources. Search repo and skill names, filter by language, license, and stars. No owners, no descriptions, no links.">
 <link rel="icon" href="data:,">
 <link rel="stylesheet" href="style.css">
 </head>
@@ -15,6 +15,9 @@
     <nav class="nav-links" aria-label="Main">
       <a class="nav-link" id="nav-home" href="#/">Home</a>
       <a class="nav-link" id="nav-categories" href="#/categories">Categories</a>
+      <a class="nav-link" id="nav-skills" href="#/skills">Skills</a>
+      <a class="nav-link" id="nav-prompts" href="#/prompts">Prompts</a>
+      <a class="nav-link" id="nav-agents" href="#/agents">Agents</a>
     </nav>
     <span class="build-badge">Public build</span>
     <button id="nav-contribute" type="button" class="contribute-nav-button">Contribute repo</button>
@@ -37,12 +40,19 @@
     <div class="search-block" aria-label="Search">
       <form id="search-form" class="searchbar" autocomplete="off">
         <span class="search-icon" aria-hidden="true">⌕</span>
-        <label class="visually-hidden" for="search-input">Search repo names</label>
+        <label class="visually-hidden" id="search-label" for="search-input">Search repo names</label>
         <input id="search-input" type="search" placeholder="Search repo names…" aria-describedby="search-hint" aria-expanded="false" aria-controls="search-suggest" aria-autocomplete="list" role="combobox">
         <button type="submit">Search</button>
       </form>
       <p id="search-hint" class="hint">Type to see suggestions, best-starred first. Search matches any part of a repo name. Use ↑ ↓ to move through suggestions, Enter to open one.</p>
       <div id="search-suggest" class="suggest" role="listbox" aria-label="Suggestions" hidden></div>
+    </div>
+
+    <div id="type-tabs" class="type-tabs" aria-label="Catalog types">
+      <a class="type-tab" id="tab-repos" href="#/">Repos · <b id="tab-count-repos">…</b></a>
+      <a class="type-tab" id="tab-skills" href="#/skills">Skills · <b id="tab-count-skills">…</b></a>
+      <a class="type-tab" id="tab-prompts" href="#/prompts">Prompts · <b id="tab-count-prompts">…</b></a>
+      <a class="type-tab" id="tab-agents" href="#/agents">Agents · <b id="tab-count-agents">…</b></a>
     </div>
 
     <div id="error-box" class="error-box" role="alert" hidden></div>
@@ -251,6 +261,23 @@
       <div id="categories-grid" class="category-grid"><p class="muted">Loading categories…</p></div>
     </section>
 
+    <section id="skills-section" class="section" aria-label="All skills" hidden>
+      <div class="section-head">
+        <h2>Browse skills by category</h2>
+        <p>Ready-made abilities for AI assistants, grouped by what they do. Every listing is alphabetical — no installs data is published yet, so nothing here is ranked by popularity.</p>
+      </div>
+      <div id="skills-grid" class="category-grid"><p class="muted">Loading skills…</p></div>
+      <p id="skills-note" class="muted"></p>
+    </section>
+
+    <section id="soon-section" class="section" aria-label="Coming soon" hidden>
+      <div class="section-head">
+        <h2 id="soon-title">Coming soon</h2>
+      </div>
+      <p id="soon-body" class="section-lede"></p>
+      <button id="soon-back" type="button" class="cta-button">← Back home</button>
+    </section>
+
     <section id="results-section" class="section" aria-label="Results" hidden>
       <div class="results-head">
         <h2 id="results-title">Results</h2>
@@ -261,13 +288,13 @@
 
       <div id="filter-bar" class="filter-bar" hidden>
         <div class="filter-row">
-          <label class="filter-field">Language
+          <label class="filter-field"><span id="filter-language-label">Language</span>
             <select id="filter-language"></select>
           </label>
           <label class="filter-field">License
             <select id="filter-license"></select>
           </label>
-          <label class="filter-field">Min stars
+          <label class="filter-field"><span id="filter-min-stars-label">Min stars</span>
             <select id="filter-min-stars">
               <option value="0">Any stars</option>
               <option value="100">100+ stars</option>
@@ -328,7 +355,7 @@
 
 <footer class="site-footer">
   <div class="wrap">
-    <p><b>dev-marketplace</b> — a public catalog of developer resources. This public catalog shows repo names without owners, descriptions, or links. Counts come from the catalog data files shipped with this site. MCP, intelligent discovery, and API access are coming soon.</p>
+    <p><b>dev-marketplace</b> — a public catalog of developer resources. This public catalog shows repo names without owners, descriptions, or links. Skills listings show skill names, categories, licenses, and compatibility — no descriptions or links. Counts come from the catalog data files shipped with this site. MCP, intelligent discovery, and API access are coming soon.</p>
   </div>
 </footer>
 
